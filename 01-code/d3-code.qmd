@@ -1,0 +1,567 @@
+---
+title: "Linear Regression: Day 3"
+author:
+  name: "Constantin Manuel Bosancianu"
+  orcid: 0000-0001-7950-9798
+  email: bosancianu@icloud.com
+date: "February 27, 2019"
+bibliography: "../03-slides/Bibliography.bib"
+execute:
+  eval: true
+  echo: true
+  warning: false
+  error: false
+format:
+  html:
+    toc: true
+    code-fold: true
+    toc-location: left
+    theme: minty
+    number-sections: true
+    reference-location: margin
+    embed-resources: true
+---
+
+# Introduction
+
+We first start with yesterday's data set on SAT scores in the US states - just a few more results, and we can put it behind us.
+
+```{r load-packages}
+library(pacman)
+p_load(readstata13, tidyverse, psych, interplot, car, knitr,
+       texreg, dotwhisker, effects, clarify, kableExtra,
+       magrittr, ggthemes)
+
+# Avoid scientific notation for coefficients
+options(scipen = 8)
+```
+
+Also define the centering function we wrote yesterday.
+
+```{r centering-function}
+fun_center <- function(x) {
+    x - mean(x, na.rm = TRUE)
+}
+```
+
+# Reading data
+
+We read in the data we saved at the end of yesterday.
+
+```{r read-data-1}
+df_sat <- read.csv(file = "../02-data/02-Education-states-followup.csv",
+                   header = TRUE)
+```
+
+# Categorical predictors
+
+Re-estimate the last model we ran in yesterday's session.
+
+```{r ols-1}
+model1 <- lm(csat ~ exp_scale + per_scale,
+             data = df_sat,
+             na.action = na.omit)
+summary(model1)
+```
+
+We noticed in the first day fairly large regional differences in terms of SAT scores.
+
+```{r regional-differences, results='asis'}
+df_sat %>%
+    group_by(region) %>%
+    summarise(CSAT = mean(csat, na.rm = TRUE)) %>%
+    ungroup() %>%
+    kable(caption = "Average CSAT scores by region",
+          caption.above = TRUE,
+          col.names = c("Region", "CSAT")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+One lingering issue is whether the regional distinctions we observed are due to differences in education spending, or percentage of graduates taking the SAT, or rather another factor?
+
+Recode this region indicator into a dummy variable, measuring whether the state is in the Northeast region or not.^[The annoying part is that the District of Columbia is not actually part of a region. So as not to lose the case, I coded it manually as belonging to the North East.]
+
+```{r recode-1}
+df_sat %<>%
+    mutate(region = as.character(region),
+           neast = if_else(region == "N. East", 1, 0),
+           neast = if_else(state == "District of Columbia",
+                           1, neast))
+```
+
+```{r ols-2}
+model2 <- lm(csat ~ exp_scale + per_scale + neast,
+             data = df_sat,
+             na.action = na.omit)
+
+summary(model2)
+```
+
+It will be a bit easier if we have the models in a comparison table, so this next section of code simply does this table and displays it on the screen.^[The `screenreg()` function is from the `texreg` package.]
+
+```{r compare-models-1, eval=FALSE}
+screenreg(list(model1, model2),
+          digits = 3)
+```
+
+```{r compare-models-2, results='asis'}
+htmlreg(list(model1, model2),
+        digits = 3,
+        single.row = FALSE,
+        custom.model.names = c("Model 1", "Model 2"),
+        custom.coef.names = c("(Intercept)", "Spending (centered)",
+                              "% taking SAT (centered)", "Northeast"),
+        caption = "Two comparison regression models",
+        caption.above = TRUE,
+        head.tag = FALSE, body.tag = FALSE, inline.css = TRUE,
+        doctype = FALSE, html.tag = FALSE)
+```
+
+**Questions**:
+
+1. How do you interpret the effect of being a state in the North East?
+2. How come it's now **positive**?
+
+```{r relationship-sat-popularity}
+df_sat %>%
+    group_by(neast) %>%
+    summarise(PERCENT = mean(percent, na.rm = TRUE),
+              CSAT = mean(csat, na.rm = TRUE)) %>%
+    ungroup() %>%
+    kable(caption = "Relationship between cohort size and CSAT score across regional groups", # nolint
+          caption.above = TRUE,
+          col.names = c("Region", "% students taking SAT", "CSAT score")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+Multiple categories can also be handled easily. Say that instead of just comparing the North East with everyone else, we wanted to see how each region is doing. That can also be checked very easily.^[`as.factor()` turns a categorical variables into a set of dummy indicators.]
+
+```{r ols-3}
+model3 <- lm(csat ~ exp_scale + per_scale + as.factor(region),
+             data = df_sat,
+             na.action = na.omit)
+
+summary(model3)
+```
+
+The omitted category in this case is "Midwest". How would you interpret the intercept value in this case? Furthermore, how would you interpret the value of the coefficient for "North East"?
+
+If you're not happy with the reference category selected automatically by `R`, you can always force a specific reference category with the aid of a small function: `relevel()`.
+
+```{r relevel-indicator}
+df_sat %<>%
+    mutate(region = as.factor(region))
+
+df_sat <- within(df_sat, region <- relevel(region, ref = "South"))
+```
+
+```{r ols-4}
+model4 <- lm(csat ~ exp_scale + per_scale + as.factor(region),
+             data = df_sat,
+             na.action = na.omit)
+
+summary(model4)
+```
+
+Just remember, forcing a reference category will also change the interpretation of the intercept, compared to the previous model. However, the interpretation of the other predictors is not changed. Nor is their effect size altered.
+
+```{r cleanup}
+rm(df_sat, model1, model2, model3, model4)
+```
+
+# Regression inference
+
+We start with a new data set today, obtained from Round 7 of the *European Social Survey*. The data refers to Great Britain, and was collected in 2014. As the data is in .CSV format, both `R` and `Stata` users will have to work with the codebook (**Codebook-ESS-data.pdf**).
+
+```{r read-data-2}
+df_ess_uk <- read.csv(file = "../02-data/03-Practice-data-ess.csv",
+                      header = TRUE)
+```
+
+Now, before we start, it is only fair to say that the most proper model for this data is not a linear regression, but rather an ordered logit. This would treat the measurement scale of satisfaction with democracy as a proper set of 11 categories, arranged in order of intensity, and not as a continuous scale (where *any* value between 0 and 10 is possible). The dangers in using a linear regression on such a 0-10 ordered scale are that predictions frequently fall in between adjacent categories (e.g., 3.675), or that predictions might fall outside of the bounds of the scale (e.g., 12). Nevertheless, I will use such a model for this dependent variable.
+
+There are two main reasons for this. For one, you frequently encounter such models being used for ordinal data in applied work, so it's worthwhile to show an example. Second, very frequently the substantive results from a linear model will be very similar to those obtained with a ordered logit. In this sense, then, we are not abusing the data as much as would seem at first glance. Even so, I'd like to stress this once more: the most appropriate model for this dependent variable is an ordered logit.
+
+If we are being honest, there are not that many variables in voting behavior that are truly continuous, and therefore suitable for a linear model estimated with OLS.
+
+## Examine data
+
+```{r examine-data-1}
+df_ess_uk %>%
+    glimpse()
+```
+
+The `describe()` function is available in the `psych` package.
+
+```{r examine-data-2}
+describe(df_ess_uk$age15)
+```
+
+We can also plot the distribution of key variables.
+
+```{r plot-age}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_ess_uk, aes(x = age15)) +
+    geom_histogram() +
+    theme_clean() +
+    xlab("Age (rescaled)")
+```
+
+```{r examine-data-3}
+describe(df_ess_uk$eduyrs)
+```
+
+```{r plot-education}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_ess_uk, aes(x = eduyrs)) +
+    geom_histogram() +
+    theme_clean() +
+    xlab("Years of education")
+```
+
+```{r examine-data-4}
+describe(df_ess_uk$hinctnta)
+```
+
+```{r plot-income}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_ess_uk, aes(x = hinctnta)) +
+    geom_histogram() +
+    theme_clean() +
+    xlab("Household net income (decile)")
+```
+
+As before, we can also try a multivariate display.
+
+```{r plot-income-satisfaction}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_ess_uk,
+       aes(x = hinctnta,
+           y = stfdem)) +
+    geom_point(size = 2) +
+    geom_jitter() +
+    labs(x = "Household net income (decile)",
+         y = "Satisfaction with democracy") +
+    theme_clean()
+```
+
+Unfortunately, scatterplots aren't very useful in this case. Even with the jittering function, they can't really show whether there is a relationship between the two variables. This is a standard occurrence when using ordered data with a limited number of categories.
+
+A much more useful approach is to simply compute a mean of satisfaction with democracy for each level of income of our respondents. That ought to give us a rough idea whether higher income is associated with a higher level of satisfaction.
+
+```{r display-aggregate-income-happy, results='asis'}
+df_ess_uk %>%
+    group_by(hinctnta) %>%
+    summarise(STF = mean(stfdem, na.rm = TRUE)) %>%
+    kable(caption = "Average satisfaction by income group",
+          caption.above = TRUE,
+          col.names = c("Income decile", "Average satisfaction")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+Apart for some slight deviations, there seems to be a positive relationship between the two. As income increases, so does satisfaction with democracy.
+
+With education it will be slightly more difficult to spot the trend, as we have 31 categories. I will collapse them into 6, so as to make the pattern clearer.
+
+```{r recode-2}
+df_ess_uk %<>%
+    mutate(educ06 = case_when(eduyrs <= 5 ~ 1,
+                              eduyrs >= 6 & eduyrs <= 10 ~ 2,
+                              eduyrs >= 11 & eduyrs <= 15 ~ 3,
+                              eduyrs >= 16 & eduyrs <= 20 ~ 4,
+                              eduyrs >= 21 & eduyrs <= 25 ~ 5,
+                              eduyrs >=26 ~ 6))
+```
+
+```{r display-aggregate-educ-happy, results='asis'}
+df_ess_uk %>%
+    group_by(educ06) %>%
+    summarise(STF = mean(stfdem, na.rm = TRUE)) %>%
+    kable(caption = "Average satisfaction by educational group",
+          caption.above = TRUE,
+          col.names = c("Educational category", "Average satisfaction")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+There also seems to be a positive relationship between these two variables. How is the correlation between these two predictors (education and income)?^[We use Spearman's $\rho$ in this case, because the two indicators are ordinal.]
+
+```{r correlation-inc-educ}
+cor(df_ess_uk$eduyrs, df_ess_uk$hinctnta,
+    use = "complete.obs",
+    method = "spearman")
+```
+
+Before starting with the model, I will listwise delete all observations with missing information on any of the variables. This is so as to make sure that all models are estimated on exactly the same sample.^[It also means that in the `lm()` function below we won't need to use the `na.action = ` argument.]
+
+```{r listwise-deletion}
+df_ess_uk %<>%
+    na.omit()
+```
+
+## Inference
+
+Start by running a simple model of satisfaction with democracy. First, though, let's make sure income has a meaningful "0" value, so as to be able to interpret the intercept in a sensible way.
+
+```{r recode-3}
+df_ess_uk %<>%
+    mutate(hinctnta = hinctnta - 1)
+```
+
+```{r ols-5}
+model1 <- lm(stfdem ~ hinctnta,
+             data = df_ess_uk)
+summary(model1)
+```
+
+**Questions**:
+
+1. How do you interpret the intercept in this instance?
+2. How do you interpret the effect of income?
+3. Are they statistically significant? How can you tell?
+
+Using the information in the output, you could also compute by hand a 95% or 99% confidence interval for both the slope and the intercept. This isn't really that important, as there is a function for this in `R`.
+
+```{r confidence-intervals-1}
+confint.lm(model1, level = 0.95)
+confint.lm(model1, level = 0.99)
+```
+
+99% confidence intervals are wider than the 95% confidence intervals, but this is normal. If you want to have a higher degree of certainty, you'd better enlarge your universe of possibilities. Taking this to the limit, a 100% confidence interval will be... $-\infty$ to $+\infty$. Also note that there is nothing special about the 95% confidence level. It was chosen a long time ago (by R. A. Fisher) as a convenient threshold, and scientists have followed that convention to this day. It is just that, though: a convention. It doesn't have deeper mathematical properties. If you wanted to you could use 0.10 or 0.15 as a threshold, although the power of a convention is strong: you will frequently have to justify the choice.
+
+```{r ols-6}
+model2 <- lm(stfdem ~ male + age15 + hinctnta + eduyrs,
+             data = df_ess_uk)
+
+summary(model2)
+```
+
+**Question**: What does it mean that the significance test for education produces a *p*-value that is much, much lower than the corresponding *p*-value for gender?
+
+```{r confidence-intervals-2}
+confint.lm(model2, level = 0.95)
+```
+
+You can see from the F-test for Model 2 that at least some of the coefficients are not 0 (redundant information, given that we already examined the significance tests for each coefficient).
+
+What if we wanted to compare Model 1 with Model 2, though? We could see whether any of the added predictors have effects that are different from 0.
+
+```{r model-fit-1}
+anova(model1, model2)
+```
+
+Indeed, at least some of these added predictors have coefficients which are different from 0. The F-test value is 29.889, and is statistically significant at the 0.05 level.
+
+# Presenting results
+
+## Coefficient tables
+
+In most journals, you will likely be required to present a table of regression results, as we generated yesterday. That's the standard approach.
+
+Let's start by running an additional model, for comparison purposes.
+
+```{r ols-7}
+model3 <- lm(stfdem ~ male + age15 + hinctnta + eduyrs +
+                 mbtru + ppltrst,
+             data = df_ess_uk)
+
+summary(model3)
+```
+
+```{r results-present-1, results='asis'}
+htmlreg(list(model2, model3),
+        digits = 2,
+        single.row = FALSE,
+        custom.model.names = c("Small model",
+                               "Larger model"),
+        custom.coef.names = c("(Intercept)", "Gender (male)", "Age (centered at 15)", # nolint
+                              "Income (deciles)", "Education (years)",
+                              "Union membership", "Interpersonal trust"),
+        caption = "Two comparison regression models",
+        caption.above = TRUE,
+        head.tag = FALSE, body.tag = FALSE, inline.css = TRUE,
+        doctype = FALSE, html.tag = FALSE)
+```
+
+## Coefficient plots
+
+The slightly cooler way is to present the coefficients graphically, and maybe put the table of actual results in the online appendix.^[The `dwplot()` function is available in the `dotwhisker` package.]
+
+```{r results-present-2}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+dwplot(model2)
+```
+
+As before, the `dwplot()` function exports a "ggplot2" object, so you can customize it further with the standard functions in that package.
+
+```{r results-present-3}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+dwplot(model2) +
+    xlab("Effect") +
+    ylab("Coefficient") +
+    geom_vline(xintercept = 0,
+               linetype = "dashed",
+               linewidth = 1.5,
+               color = "red") +
+    theme_clean() +
+    theme(legend.position = "none") # Removes the legend, which is a
+                                    # bit useless in this case
+```
+
+You can even do slightly more sophisticated things with it, like comparing different model estimates.
+
+```{r results-present-4}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+dwplot(list(model2, model3),
+       dot_args = list(size = 3)) +
+    xlab("Effect") +
+    ylab("Coefficient") +
+    geom_vline(xintercept = 0,
+               linetype = "dashed",
+               linewidth = 1.5,
+               color = "red") +
+    theme_clean()
+```
+
+You can further customize the plot by having nice variable names for the predictors.
+
+```{r results-present-5}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+dwplot(list(model2, model3),
+       dot_args = list(size = 3)) +
+    xlab("Effect") +
+    ylab("Coefficient") +
+    geom_vline(xintercept = 0,
+               linetype = "dashed",
+               linewidth = 1.5,
+               color = "red") +
+    theme_clean() +
+    scale_y_discrete(breaks = c("male", "age15", "hinctnta",
+                                "eduyrs", "mbtru", "ppltrst"),
+                     labels = c("Gender (male)", "Age", "HH income",
+                                "Education (yr.)", "Union member",
+                                "Trust"))
+```
+
+## Effect plots
+
+The final way, though, is my favorite. There are multiple reasons for this, but the main one is that it presents what people actually care about: how does the outcome change when the predictor changes?
+
+Coefficients are not so intuitive for an audience that has had no contact with statistics. Changes in the outcome are simple enough for most people to understand.
+
+```{r results-present-6}
+eff1 <- Effect("eduyrs", # Which predictor are we interested in
+               model2, # Which model estimates do we want
+               xlevels = list(eduyrs = c(9:19)), # For which levels of
+                                        # the predictor to compute
+                                        # effects
+               se = TRUE) # We want uncertainty measures (the default)
+
+# Simple display of effects
+eff1
+```
+
+We can further plot these effects.
+
+```{r results-present-7}
+#| fig-height: 4
+#| fig-width: 5
+#| fig-align: "center"
+#| dpi: 144
+
+plot(eff1,
+     main = "Effect of education on satisfaction",
+     xlab = "Education (years)",
+     ylab = "Democratic satisfaction")
+```
+
+## The `clarify` magic
+
+`clarify` works with the regression object fitted with `lm()`^[In fact, it accepts objects fitted by many other functions, which makes it conventient to work with.], so there is not much additional work to do here. `clarify` only starts to kick in when we take this fitted regression object, and begin to *simulate* the coefficients.
+
+The key difference from the previous methods is that until now they presented either raw coefficients, or *predicted* values. `clarify` presents *simulated* values, which incorporate both uncertainty from SEs, as well as uncertainty generated by the fact that the model does not fit the data perfectly.
+
+Here is how the authors of the package describe the issue: "Although regression models are frequently used in empirical research to study relationships among variables, often the quantity of substantive interest is not one of the coefficients of the model, but rather a quantity derived from the coefficients, such as predicted values or average marginal effects. The usual method for estimating the uncertainty of the derived quantities is an approximation known as the *delta method*. The delta method involves two approximations: 1) that the variance of the derived quantity can be represented as a first-order Taylor series, and 2) that the resulting estimate is normally distributed. In many cases, especially with nonlinear models, these approximation can fail badly. `clarify` implements an alternative to the delta method—simulation-based inference—which involves simulating the sampling distributions of the derived quantities."^[See more details at: [https://iqss.github.io/clarify/articles/clarify.html](https://iqss.github.io/clarify/articles/clarify.html).]
+
+```{r simulate-coefficients-1}
+set.seed(156286) # A random seed, which ensures results are replicable
+m3_sim <- sim(model3)
+```
+
+From this point onward, it's all `clarify`. Set some interesting values for a predictor you're interested in, and see how the outcome varies. You can easily do this with the `sim_setx()` function.
+
+```{r simulate-coefficients-2}
+m3_est <- sim_setx(m3_sim,
+                   x = list(hinctnta = 2),
+                   x1 = list(hinctnta = 7),
+                   verbose = FALSE)
+summary(m3_est)
+```
+
+Instead of presenting raw numbers, we can plot these results.^[`FD` on the plot refers to the difference in the outcome by going from the lower value of the key predictor to the higher value.]
+
+```{r results-present-8}
+#| fig-height: 3
+#| fig-width: 9
+#| fig-align: "center"
+#| dpi: 144
+
+plot(m3_est)
+```
+
+The cool thing is that the "sim_setx()" approach can work even for more than 1 variable at the same time.
+
+```{r simulate-coefficients-3}
+m3_est <- sim_setx(m3_sim,
+                   x = list(hinctnta = 2, ppltrst = 2),
+                   x1 = list(hinctnta = 7, ppltrst = 8),
+                   verbose = FALSE)
+```
+
+```{r results-present-9}
+#| fig-height: 3
+#| fig-width: 9
+#| fig-align: "center"
+#| dpi: 144
+
+plot(m3_est)
+```
+
+# Package versions
+
+Package versions used in this script.
+
+```{r package-versions}
+sessionInfo()
+```

@@ -1,0 +1,56 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
+\usepackage[protrusion=true,expansion=true]{microtype} % Better typography
+\usepackage{hyperref}
+\usepackage[english]{babel}
+\usepackage{palatino}
+\usepackage[T1]{fontenc} % Required for accented characters
+\makeatletter
+
+\renewcommand{\maketitle}{
+  \begin{flushleft}
+    {\huge\@title}\\
+    \vspace{10pt}
+    {\large\@author}\\
+    \vspace{10pt}
+    {\@date}
+    \vspace{40pt}
+  \end{flushleft}
+}
+
+\title{\textbf{Codebook for SAT data}}
+\author{\textsc{Constantin Manuel Bosancianu}\\ % Author
+  \href{mailto:manuel.bosancianu@outlook.com}{manuel.bosancianu@outlook.com}\\
+  \textit{Wissenschaftszentrum Berlin}\\
+  \textit{Institutions and Political Inequality}} % Institution
+\date{\today} % Date
+
+\begin{document}
+\maketitle
+
+The data contains information on the average SAT score in each US state, collected around 1990-1991 in the United States. The data set is taken from Lawrence C. Hamilton, ``Statistics with STATA 9'', Duxbury Press, 2009. The original data set had a few more variables, but for the sake of keeping things manageable, I excluded them from the data.
+
+The following variables can be found in the data:
+
+\begin{enumerate}
+\item \texttt{state}: state name;
+\item \texttt{region}: geographic region in the United States;
+\item \texttt{pop}: population of the state (information from the 1990 Census);
+\item \texttt{area}: land area, in square miles;
+\item \texttt{density}: population density (number of people per square mile);
+\item \texttt{metro}: metropolitan area population, as percentage of the entire state population;
+\item \texttt{waste}: per capita solid waste, measured in tons;
+\item \texttt{energy}: per capita energy consumption, measured in BTUs;
+\item \texttt{toxic}: per capita toxins released in the environments, measured in pounds;
+\item \texttt{green}: per capita greenhouse gas emissions, measured in tons;
+\item \texttt{csat}: average composite SAT score (verbal plus math);
+\item \texttt{vsat}: average verbal SAT score;
+\item \texttt{msat}: average mathematics SAT score;
+\item \texttt{percent}: percentage of high school graduates taking the SAT;
+\item \texttt{expense}: expenditure per student on primary and secondary education, measured in USD;
+\item \texttt{income}: median household income, expressed in 1,000s of USD;
+\item \texttt{high}: percentage of adults with a high school diploma;
+\item \texttt{college}: percentage of adults with a college degree.
+\end{enumerate}
+
+\end{document}

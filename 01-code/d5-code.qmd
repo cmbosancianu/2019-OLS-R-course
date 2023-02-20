@@ -1,0 +1,239 @@
+---
+title: "Linear Regression: Day 5"
+author:
+  name: "Constantin Manuel Bosancianu"
+  orcid: 0000-0001-7950-9798
+  email: bosancianu@icloud.com
+date: "March 1, 2019"
+bibliography: "../03-slides/Bibliography.bib"
+execute:
+  eval: true
+  echo: true
+  warning: false
+  error: false
+format:
+  html:
+    toc: true
+    code-fold: true
+    toc-location: left
+    theme: minty
+    number-sections: true
+    reference-location: margin
+    embed-resources: true
+---
+
+# Introduction
+
+We start with a coverage of interactions, which allow us to understand how the effect of a predictor varies over the values of another predictor in the regression model. This allows us to construct more sophisticated hypotheses which don't have to assume that a 1-unit increase in predictor X will **always** lead to a $\beta$ increase in the outcome.
+
+```{r load-packages}
+library(pacman)
+p_load(readstata13, tidyverse, interplot, ggeffects, kableExtra,
+       magrittr, ggthemes)
+
+# Avoid scientific notation for coefficients
+options(scipen = 8)
+```
+
+Define again the centering function we wrote a few days ago.
+
+```{r centering-function}
+fun_center <- function(x) {
+    x - mean(x, na.rm = TRUE)
+}
+```
+
+# Reading data
+
+We're back to a **CSV** format. We will be using the same ESS data as in Day 3.
+
+```{r read-data-1}
+df_ess_uk <- read.csv(file = "../02-data/03-Practice-data-ess.csv",
+                      header = TRUE)
+```
+
+# Interactions
+
+Before we run any models, we have to clean the data a bit, by:
+
+1. Giving household income a meaningful 0 point
+2. Rescaling years of education by subtracting 13 years from each value^[The mean of education is 13.52 in my sample, so it's very close to centering it].
+
+```{r recode-data-1}
+df_ess_uk %<>%
+    mutate(hinctnta = hinctnta - 1,
+           edu_scale = eduyrs - 13) %>%
+    dplyr::select(stfdem, male, age15, hinctnta, edu_scale, mbtru, ppltrst) %>%
+    na.omit()
+```
+
+Let's start off with a standard model of satisfaction with democracy.
+
+```{r ols-1}
+model1 <- lm(stfdem ~ male + age15 + hinctnta + edu_scale +
+                 mbtru + ppltrst,
+             data = df_ess_uk)
+
+summary(model1)
+```
+
+Is the effect of gender constant across all levels of education, though? A multiplicative interaction would help us answer this question.
+
+```{r ols-2}
+model2 <- lm(stfdem ~ male + age15 + hinctnta + edu_scale +
+                 mbtru + ppltrst + male * edu_scale,
+             data = df_ess_uk)
+
+summary(model2)
+```
+
+It turns out that it's not.
+
+**Questions**:
+
+1. How do you interpret the effect of gender?
+2. How do you interpret the effect of education?
+3. How do you interpret the effect of the interaction term?
+
+In this case it's fairly easy to interpret the effect from the table of results itself. In other cases, though, it's not that easy. This is why the preferred way of presenting these results is to plot them graphically.
+
+```{r interaction-plot-1}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+interplot(model2,
+          "male", # The "focal independent" variable
+          "edu_scale") # The moderator variable
+```
+
+First, what exactly gets plotted there? Second, how would you give a substantive interpretation to these results?
+
+Remember, an interaction is symmetrical, so you can adopt the opposite interpretation as well.
+
+```{r interaction-plot-2}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+interplot(model2,
+          "edu_scale",
+          "male")
+```
+
+Yet again, the same question - what exactly gets plotted here?
+
+A slightly more "honest" way of presenting this plot would be to recognize that education has specific categories. The `point = TRUE` argument makes `interplot()` display a set of points, rather than a continuous line.
+
+```{r interaction-plot-3}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+interplot(model2,
+          "male",
+          "edu_scale",
+          point = TRUE) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    labs(x = "Education level (centered)",
+         y = "Effect of gender on\nsatisfaction with democracy") +
+    scale_x_continuous(breaks = c(-13, -7, -1, 5, 11, 17)) +
+    theme_clean()
+```
+
+As you could already tell, `interplot()` produces a `ggplot2` object, so it's easy to actually add layers to the plot with the standard `ggplot2` commands.
+
+# Logistic regression
+
+We would like to analyze the determinants of closeness to a particular party. Given the rising levels of alienation toward established political movements we have seen in advanced democracies of late, such a question certainly deserves an exploration. Who are the people most disenchanted with established political actors, and who might be tempted to support alternative movements?
+
+```{r read-data-2}
+df_ess_uk <- read.csv(file = "../02-data/03-Practice-data-ess.csv",
+                      header = TRUE)
+```
+
+Before we run any models, we clean the data in the same way we did above:
+
+1. Giving household income a meaningful 0 point
+2. Rescaling years of education by subtracting 13 years from each value
+
+```{r recode-data-2}
+df_ess_uk %<>%
+    mutate(hinctnta = hinctnta - 1,
+           edu_scale = eduyrs - 13) %>%
+    dplyr::select(clsprty, male, age15, hinctnta, edu_scale, mbtru, ppltrst,
+                  eduyrs) %>%
+    na.omit()
+```
+
+Some inspiration can always come from looking at the data through crosstabs and graphics.
+
+```{r examine-data-1, results='asis'}
+df_ess_uk %>%
+    group_by(clsprty) %>%
+    summarise(AGE = mean(age15, na.rm = TRUE),
+              EDU = mean(eduyrs, na.rm = TRUE),
+              INC = mean(hinctnta, na.rm = TRUE)) %>%
+    kable(caption = "Relationship between 3 predictors",
+          caption.above = TRUE,
+          digits = 2) %>%
+    kable_styling(full_width = TRUE)
+```
+
+At first glance, it would seem that it's younger people who tend to report not feeling close to any party. No distinction based on education can be seen, and only a slight one based on income.
+
+Will these differences still remain, once we control for other variables? This is where regression comes in.
+
+```{r glm-1}
+model1 <- glm(clsprty ~ male + age15 + edu_scale + mbtru +
+                  hinctnta + ppltrst, # Formula, the same way as before
+              data = df_ess_uk, # Specify data
+              na.action = na.omit, # Specify how missing values are to
+                                   # be handled
+              family = binomial(link = "logit"))
+
+summary(model1)
+```
+
+This last part of the `glm()` function is new. You are basically specifying two things here: the distribution of the dependent variable, which is binomial, and the link function to be used. There are different distributions for the DV (Poisson, gamma, quasibinomial etc), and different link functions (e.g., probit). More importantly, this also has the family `Gaussian` (for a continuous DV) with the link `identity`, which means you can estimate a linear regression with this function.
+
+Just remember, the coefficients you see displayed from the `summary()` function are expressed in logged odds. If you want to see the odds, you have to use the `exp()` function to exponentialize them.
+
+```{r glm-2}
+exp(coef(model1))
+```
+
+It's not difficult to present predictions from this model, and in a manner that your audience would understand, even with minimal training in statistics: based on probabilities of the outcome to happen.
+
+This time, we rely on the `ggeffects` package. It calls up the `effects` package for the computation of marginal effects, but then uses these marginal effects to produce a `ggplot2` object, to be customized to your heart's desire.
+
+```{r glm-3}
+ggeffect(model1, # regression object
+         terms = "edu_scale", # Variable name
+         ci.lvl = 0.95) # Confidence interval
+```
+
+```{r glm-4}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+eff1 <- ggeffect(model1,
+                 terms = "edu_scale [-7:7]",
+                 ci.lvl = 0.95)
+
+plot(eff1)
+```
+
+
+# Package versions
+
+Package versions used in this script.
+
+```{r package-versions}
+sessionInfo()
+```

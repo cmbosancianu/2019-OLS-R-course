@@ -1,0 +1,23 @@
+\begin{table}[htbp]\centering
+\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}
+\caption{Regression comparison table}
+\begin{tabular}{l*{2}{c}}
+\hline\hline
+                    &\multicolumn{1}{c}{First model}&\multicolumn{1}{c}{Second model}\\
+\hline
+Rescaled (centered) educational expenditure&     -0.0223\sym{***}&     0.00860\sym{*}  \\
+                    &   (0.00604)         &   (0.00420)         \\
+[1em]
+Rescaled (centered) % of HS graduates taking SAT&                     &      -2.538\sym{***}\\
+                    &                     &     (0.225)         \\
+[1em]
+Constant            &       944.1\sym{***}&       944.1\sym{***}\\
+                    &     (8.376)         &     (4.428)         \\
+\hline
+Observations        &          51         &          51         \\
+\hline\hline
+\multicolumn{3}{l}{\footnotesize Standard errors in parentheses}\\
+\multicolumn{3}{l}{\footnotesize Source: Data from WSMT 2019.}\\
+\multicolumn{3}{l}{\footnotesize \sym{*} \(p<0.05\), \sym{**} \(p<0.01\), \sym{***} \(p<0.001\)}\\
+\end{tabular}
+\end{table}

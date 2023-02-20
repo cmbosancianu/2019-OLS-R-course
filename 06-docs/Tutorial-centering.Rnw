@@ -1,0 +1,167 @@
+\documentclass[12pt,english]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{inputenc}
+\usepackage{parskip}
+\usepackage[colorlinks=TRUE,
+            citecolor=NavyBlue,
+            urlcolor=violet]{hyperref}
+\hypersetup{pdfauthor={Constantin Manuel Bosancianu},
+pdftitle={Tutorial on centering},
+pdfsubject={What centering does in linear regression},
+pdfkeywords={Bamberg, ECPR, 2019, tutorial, centering}}
+\usepackage{babel}
+\usepackage{graphicx}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{CormorantGaramond}
+\usepackage{dcolumn}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\makeatletter
+\renewcommand{\maketitle}{
+  \begin{flushleft}
+    {\huge\@title}\\
+    \vspace{10pt}
+    {\large\@author}\\
+    {\@date}
+    \vspace{40pt}
+  \end{flushleft}
+}
+\makeatother
+\usepackage{apacite}
+\title{Tutorial on centering}
+\author{Constantin Manuel Bosancianu\thanks{Research fellow, \textit{Institutions and Political Inequality}, WZB Berlin Social Science Center. Email: \href{mailto:bosancianu@icloud.com}{bosancianu@icloud.com}.}}
+\date{February 16, 2019}
+\begin{document}
+\maketitle
+
+This will be a very short tutorial on how centering impacts your regression coefficients, as well as your interpretation of these regression coefficients. It's important to mention that these insights only when you do standard centering on cross-sectional data. There is also a large literature on centering in multilevel models \cite{kreft_effect_1995, paccagnella_centering_2006, enders_centering_2007}, but for these types of data structures my insights here will not fully hold.
+
+The variables I use comes from the Quality of Government data set, January 2018 version. The data comes from and around 2014. If no data exists for 2014 for a particular country, 2015 is used; if 2015 is also missing, 2013 is used. This choice rule is used up to $+/-$ 3 years. As a dependent variable, I use the World Justice Project's \textit{Rule of Law Index}. The variable is named \texttt{wjp\_overall}, and ranges from 0 (lowest possible extent of rule of law) to 1 (highest possible extent of rule of law). In practice, though, the minimum value is 0.319 (Venezuela), while the maximum is 0.87 (Denmark). As an independent variable, I use the estimate of a country's level of income inequality, obtained from the World Bank's \textit{World Development Indicators} (the name of the variable is \texttt{wdi\_gini}). This ranges from 0 (perfect equality) to 100 (perfect inequality). Although this is only a demonstration, existing theoretical models have linked the two phenomena, via the increased incentives businessmen have to prevent efficient tax collection through subversion of political institutions and the courts \cite{glaeser_injustice_2003}.
+
+<<options, eval=TRUE, echo=FALSE, message=FALSE>>=
+library(pacman)
+p_load(tidyverse, knitr, foreign, magrittr, texreg,
+       ggthemes)
+
+opts_chunk$set(message = FALSE,
+               warning = FALSE,
+               comment = NA,
+               echo = FALSE,
+               eval = TRUE)
+@
+
+An initial examination of a simple regression of rule of law on income inequality finds support for our presumed link (see Table \ref{tab:tab-01}). A 1-unit increase in income inequality (measured on a 0--100 scale) is associated with a 0.007 decrease in rule of law. To put it in other terms, a 10-point increase in inequality is associated with a 0.07 decrease in rule of law. Given that rule of law only varies in practice between 0.32 and 0.87, a 0.07 effect seems moderate to high.
+
+What about the intercept? Here things are a bit trickier, since inequality is never observed to be below about 23--24 points. This means that we would predict that the level of rule of law in a country with 0 inequality is 0.817. This is easiest to see in Figure \ref{fig:fig-01}, where the regression line intersects the vertical axis at a little bit above 0.8.
+
+<<intro, echo=FALSE>>=
+df_qog <- read.spss(file = "../02-data/qog_std_cs_jan18.sav",
+                    to.data.frame = TRUE, 
+                    use.value.labels = FALSE)
+
+df_qog %<>%
+    dplyr::select(cname, ccodealp, wjp_wjp_overall, wdi_gini) %>%
+    rename(wjp_overall = 3)
+
+saveRDS(df_qog, file = "../02-data/04-Data-for-centering.rds")
+@
+
+
+<<ch-3, results='asis'>>=
+# Load data; it's in R's native format now, so there's no need of
+# special functions from packages
+df_qog <- readRDS(file = "../02-data/04-Data-for-centering.rds")
+
+df_qog %<>%
+    na.omit()
+
+model1 <- lm(wjp_overall ~ wdi_gini,
+             na.action = na.omit,
+             data = df_qog)
+
+texreg(list(model1),
+       digits = 3,
+       custom.model.names = "DF: Rule of law",
+       custom.coef.names = c("(Intercept)", "Income inequality"),
+       dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE,
+       label = "tab:tab-01", caption.above = TRUE,
+       caption = "Results from simple regression")
+@
+
+The problem is that this interpretation makes little sense. We have never seen a society have a value of Gini of 0, and it is likely that no such society ever existed. Even with Romania's brutal Communism, the level of income inequality in 1990 was only 22.7. This makes our interpretation of the intercept slightly awkward. A solution to this, as I mentioned during the lecture, would be centering the predictor in our regression. We do this by subtracting from each country's value of Gini, the average value for Gini in our sample: 37.41772.
+
+\begin{figure}
+\caption{Scatterplot of the link between income inequality and rule of law}
+\label{fig:fig-01}
+<<ch-4, fig.align='center', fig.height=4, fig.width=6>>=
+ggplot(df_qog, aes(x = wdi_gini,
+                   y = wjp_overall)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Income inequality",
+       y = "Rule of law index") +
+  theme_clean() +
+  geom_segment(aes(x = 0, y = 0,
+                   xend = 75, yend = 0), 
+               arrow = arrow(length = unit(0.03, "npc"),
+               type = "closed")) +
+  geom_segment(aes(x = 0, y = 0,
+                   xend = 0, yend = 1), 
+               arrow = arrow(length = unit(0.03, "npc"),
+               type = "closed")) +
+  geom_segment(aes(x = 0, y = 0.817,
+                   xend = 24.1, yend = 0.6592527),
+               linetype = 2, color = "red",
+               linewidth = 1.5)
+@
+\end{figure}
+
+<<ch-5, results='asis'>>=
+df_qog %<>%
+    mutate(wdi_gini_cent = wdi_gini - 37.41772)
+
+model2 <- lm(wjp_overall ~ wdi_gini_cent,
+             na.action = na.omit,
+             data = df_qog)
+
+texreg(list(model2),
+       digits = 3,
+       custom.model.names = "DF: Rule of law",
+       custom.coef.names = c("(Intercept)",
+                             "Income inequality (centered)"),
+       dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE,
+       label = "tab:tab-02", caption.above = TRUE,
+       caption = "Results from simple regression (centered predictor)")
+@
+
+You can see, by comparing the results presented in Table \ref{tab:tab-02} with those of Table \ref{tab:tab-02}, that the centering does not change much. The slope value is the same, as is the $R^2$, adjusted $R^2$, and RMSE. The only thing that changes is the value of the intercept; this is because it now refers to a different quantity. In Figure \ref{fig:fig-01} it was the expected level of rule of law at 0 income inequality. Now it becomes the expected level of rule of law at 37.41772 income inequality (which is 0 on the centered version of the income inequality indicator). This can be seen in Figure \ref{fig:fig-02}, where the entire horizontal axis was shifted to the left by 37.41772 points now, bringing the scatterplot directly over the vertical axis. In this version, the regression line intersects the vertical axis at exactly 0.572, which is what our intercept is telling us.
+
+\begin{figure}
+\caption{Scatterplot with centered inequality and rule of law}
+\label{fig:fig-02}
+<<ch-6, fig.align='center', fig.height=4, fig.width=6>>=
+ggplot(df_qog, aes(x = wdi_gini_cent,
+                   y = wjp_overall)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Income inequality (centered)",
+       y = "Rule of law index") +
+  theme_clean() +
+  geom_segment(aes(x = -37.41772, y = 0,
+                   xend = 37.58228, yend = 0), 
+               arrow = arrow(length = unit(0.03, "npc"),
+               type = "closed")) +
+  geom_segment(aes(x = 0, y = 0,
+                   xend = 0, yend = 1), 
+               arrow = arrow(length = unit(0.03, "npc"),
+               type = "closed"))
+@
+\end{figure}
+
+In a sense, centering a predictor in this cross-sectional data structure has only benefits: it keeps identical what we would like to preserve the same (slope coefficients, model fit statistics) and changes what we would prefer to have changed (the awkward interpretation of the intercept). In the second regression, the intercept is interpreted as the expected level of rule of law for a level of income inequality that is common in our data: the mean level.
+
+\bibliographystyle{apacite}
+\bibliography{../03-slides/Bibliography.bib}
+
+\end{document}

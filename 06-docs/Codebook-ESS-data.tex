@@ -1,0 +1,47 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
+\usepackage[protrusion=true,expansion=true]{microtype} % Better typography
+\usepackage{hyperref}
+\usepackage[english]{babel}
+\usepackage{palatino}
+\usepackage[T1]{fontenc} % Required for accented characters
+\makeatletter
+
+\renewcommand{\maketitle}{
+  \begin{flushleft}
+    {\Large\@title}\\
+    \vspace{10pt}
+    {\large\@author}\\
+    \vspace{10pt}
+    {\@date}
+    \vspace{40pt}
+  \end{flushleft}
+}
+
+\title{\textbf{Codebook for ESS UK data}}
+\author{\textsc{Constantin Manuel Bosancianu}\\ % Author
+  \href{mailto:manuel.bosancianu@outlook.com}{manuel.bosancianu@outlook.com}\\
+  \textit{Wissenschaftszentrum Berlin f\"{u}r Sozialforschung\\
+Institutions and Political Inequality}} % Institution
+\date{\today} % Date
+
+\begin{document}
+\maketitle
+
+The data is part of Round 7 of the European Social Survey, and contains only observations for Great Britain.
+
+The following variables can be found in the data:
+
+\begin{enumerate}
+\item \texttt{stfdem}: satisfaction with the way democracy works in Great Britain, from 0 (``extremely dissatisfied'') to 1 (``extremely satisfied''); 
+\item \texttt{male}: respondent is male (1=yes; 0=no);
+\item \texttt{agea}: age of respondent, in years (ranging from 15 to 105);
+\item \texttt{eduyrs}: years of full-time education;
+\item \texttt{mbtru}: membership in trade union (1 = yes, now or at some point in the past; 0=no, never);
+\item \texttt{hinctnta}: household income, after tax and contributions (1-10 scale, where 1 is the lowest decile, and 10 is the highest decile);
+\item \texttt{ppltrst}: trust in other people, ranging from 0 (``can't be too careful'') to 10 (``most can be trusted'');
+\item \texttt{age15}: age rescaled by subtracting 15 from each value (ranging from 0 to 90).
+\item \texttt{clsprty}: closeness to any political party (1=yes; 0=no).
+\end{enumerate}
+
+\end{document}

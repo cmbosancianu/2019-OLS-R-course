@@ -1,0 +1,1114 @@
+\documentclass[12pt,english,pdf,dvipsnames,aspectratio=169]{beamer}
+\usepackage{fontspec}
+\setsansfont[Mapping=tex-text]{Fira Sans}
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\usepackage[normalem]{ulem}
+\usepackage[T1]{fontenc}
+\usepackage{dcolumn}
+\usepackage{booktabs}
+\usepackage{setspace}
+\makeatletter
+\usetheme{metropolis}
+\usepackage{mathpazo}
+\usepackage{xcolor}
+\definecolor{title}{RGB}{255,98,0}
+\usepackage{tikz, tikz-cd}
+\usetikzlibrary{shapes,backgrounds,trees,decorations.pathreplacing}
+\usepackage[labelformat=empty]{caption}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15}
+\usepgfplotslibrary{fillbetween}
+\usepackage{pgfplotstable}
+\usepackage[sectionbib]{apacite}
+\renewcommand{\bibliographytypesize}{\footnotesize}
+\usepackage{amsmath}
+\usepackage{polyglossia}
+\setdefaultlanguage[variant=american]{english}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{wrapfig}
+\usepackage{hyperref}
+\hypersetup{pdfauthor={Constantin Manuel Bosancianu},
+pdftitle={Linear regression with R/Stata},
+pdfsubject={Day 5: Interactions \& What lies beyond\dots},
+pdfkeywords={Bamberg, ECPR, 2019, day 5, WSMT}}
+\usepackage{gensymb}
+% Defines a checkmark
+\def\checkmark{\tikz\fill[scale=0.4, color=title](0,.35) -- (.25,0) -- (1,.7) -- (.25,.15) -- cycle;}
+\setbeamertemplate{itemize items}{\checkmark}
+% Small underbrace
+\def\smallunderbrace#1{\mathop{\vtop{\m@th\ialign{##\crcr
+   $\hfil\displaystyle{#1}\hfil$\crcr
+   \noalign{\kern3\p@\nointerlineskip}%
+   \tiny\upbracefill\crcr\noalign{\kern3\p@}}}}\limits}
+\setbeamerfont{footnote}{size=\tiny}
+\usepackage[bottom]{footmisc} % Place footnotes exactly at bottom
+\title{Linear Regression with R/Stata}
+\subtitle{Day 5: Interactions \& What lies beyond\dots}
+\author{Constantin Manuel Bosancianu}
+\institute{Wissenschaftszentrum Berlin \\ \textit{Institutions and Political Inequality} \\\href{mailto:bosancianu@icloud.com}{bosancianu@icloud.com}}
+\date{March 1, 2019}
+\begin{document}
+\maketitle
+% Reduces the vertical space before and after the "align" environment
+\setlength{\abovedisplayskip}{0pt}
+\setlength{\belowdisplayskip}{0pt}
+\setlength{\abovedisplayshortskip}{0pt}
+\setlength{\belowdisplayshortskip}{0pt}
+
+<<options, eval=TRUE, echo=FALSE, message=FALSE>>=
+library(pacman)
+p_load(tidyverse, knitr, foreign, magrittr, texreg,
+       ggthemes, car, MASS, lmtest, wooldridge, AER,
+       scales)
+
+opts_chunk$set(message = FALSE,
+               warning = FALSE,
+               comment = NA,
+               echo = FALSE,
+               eval = TRUE)
+@
+
+% PREAMBLE %
+\section{Preamble}
+
+\begin{frame}{Recap from yesterday}
+
+  \begin{itemize}
+  \item OLS estimates of $a$, $b$s and SEs are dependent on a set of data assumptions;
+  \item Most important ones concern the errors, $e_i$: linearity, homoskedasticity, independence, and normality;
+  \item Other assumptions to watch out for: no specification problems, no measurement error, and no (perfect) collinearity;
+  \item Outliers and cases with high leverage ought to be examined, to determine a course of action: exclusion, modification of the model etc.
+  \end{itemize}
+
+An excellent coverage of these can be found in \citeA{berry_understanding_1993} or \citeA{chatterjee_regression_2012}.
+
+\end{frame}
+
+
+
+\section{Interactions in linear regression}
+
+\begin{frame}{Why specify interactions}
+
+So far, we've worked with simple models, such as our Boston housing prices one:
+
+\begin{equation}
+Prices = a + b_1Rooms + b_2River + e
+\end{equation}
+
+Here, the effect of $River$ is assumed to be constant, $b_2$, no matter the level of the other variable in the model.\bigskip
+
+This is not always the case: effect of SES and union membership on political participation, where $b_{union}$ likely varies.
+
+\end{frame}
+
+
+
+
+\begin{frame}{Interaction model}
+
+\begin{equation}
+\footnotesize
+Price = a + b_1Rooms + b_2River + b_3Rooms*River + e
+\end{equation}
+
+Here we've specified it as a two-way multiplicative term (other forms exist as well, but are seldom encountered).\bigskip
+
+$b_1$: effect of number of rooms, when $River=0$ (meaning the township is not on the banks of the Charles river).
+
+\end{frame}
+
+
+
+\begin{frame}{Interaction model (cont.)}
+
+When $River=0$,
+
+\begin{align}
+  Price =& a + b_1Rooms + b_2*0 + b_3Rooms*0 + e \nonumber\\
+        =& a + b_1Rooms + e
+\end{align}
+
+When $River=1$,
+
+\begin{align}
+  Price =& a + b_1Rooms + b_2*1 + b_3Rooms*1 + e \nonumber\\
+        =& a + b_2 + Rooms(b_1 + b_3) + e
+\end{align}
+
+The effect of $Rooms$ varies depending on the value of $River$.
+
+\end{frame}
+
+
+
+
+\begin{frame}{Interactions---symmetry}
+
+When $Rooms=0$, then
+
+\begin{align}
+  Price =& a + b_1*0 + b_2*River + b_30*River + \epsilon \nonumber\\
+        =& a + b_2River + \epsilon \nonumber
+\end{align}
+
+When $Rooms=1$,
+
+\begin{align}
+  Price =& a + b_1*1 + b_2*River + b_31*River + \epsilon \nonumber\\
+        =& a + b_1 + River(b_2 + b_3) + \epsilon \nonumber
+\end{align}
+
+The effect of $River$ varies depending on the level of $Rooms$.
+
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]{Graphical depiction}
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[scale=0.9]
+\begin{axis}[
+	xlabel=Rooms, % label x axis
+	ylabel=House price, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=6, xmax=12, % set the min and max values of the x-axis
+	ymin=0, ymax=130, % set the min and max values of the y-axis
+	clip=false
+]
+
+\draw [very thick] (0,20)--(500,75);
+\draw [very thick, dashed] (0,30)--(500,85);
+\draw [very thick] (0,30)--(500,125);
+\draw [thick,->,>=stealth] (5,21)--(5,30.5) node [midway,right, yshift=2pt] {\scriptsize{$b_2$}};
+\draw [thick,->,>=stealth] (200,42)--(300,42) node [midway,below] {\scriptsize{$1$}};
+\draw [thick,->,>=stealth] (300,42)--(300,53) node [midway,right] {\scriptsize{$b_1$}};
+\node [fill=none] at (550, 70) {\scriptsize{$Charles=0$}};
+\node [fill=none] at (550, 128) {\scriptsize{$Charles=1$}};
+\node [fill=none, text width=1.5cm] at (550, 88) {\scriptsize{Without $\times$}};
+\draw[decorate,decoration={brace}, thick] (-10,0) -- node[left] {\scriptsize{$a$}} (-10,20);
+\draw[decorate,decoration={brace, mirror}, thick] (10,0) -- node[right] {\scriptsize{$a+b_2$}} (10,29.5);
+% Add the arrows for the interaction
+\draw [thick,->,>=stealth] (100,41.5)--(100,48.5) node [midway,right, yshift=2pt] {\scriptsize{$b_3$}};
+\draw [thick,->,>=stealth] (200,52.5)--(200,67.5) node [midway,right, yshift=2pt] {\scriptsize{$2b_3$}};
+\draw [thick,->,>=stealth] (300,63.5)--(300,86.5) node [midway,right, yshift=2pt] {\scriptsize{$3b_3$}};
+\end{axis}
+\end{tikzpicture}
+\caption{Interaction between continuous and dichotomous predictors (adapted from \citeNP{brambor_understanding_2005}).}
+\end{figure}
+
+\end{frame}
+
+
+
+
+\begin{frame}{Interactions---continuous predictors}
+
+\begin{equation}
+Y = a + b_1X_1 + b_2X_2 + b_3(X_1*X_2) + \epsilon
+\end{equation}
+
+The interpretation is identical: $b_2$ is the effect of $X_2$ on $Y$ when $X_1$ is 0.\bigskip
+
+The converse interpretation, for $b_1$, is also correct.\bigskip
+
+A problem that appears in this case is the high correlation between $X_1$ and $X_1X_2$, as well as $X_2$ and $X_1X_2$.
+
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]{High correlations in interactions}
+
+<<ch-9, echo=TRUE, size="footnotesize">>=
+out <- mvrnorm(300, # number of observations
+               mu = c(5,5), # means of the variables
+               # correlation matrix
+               Sigma = matrix(c(1,0.35,0.35,1), 
+                              ncol = 2),
+               empirical = TRUE)
+colnames(out) <- c("x1","x2")
+out <- as.data.frame(out)
+cor(out$x1, out$x2) # So, that's the correlation
+@
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{High correlations in interactions}
+
+<<ch-10, echo=TRUE, size="footnotesize">>=
+out$inter <- out$x1 * out$x2 # Construct the interaction 
+                           # term
+cor(out$x1, out$inter) # Correlation
+cor(out$x2, out$inter) # Correlation
+@
+
+In these situations, the VIF becomes very large, making the sampling variance for coefficients large as well.
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Solution: centering}
+
+\underline{Centering} (de-meaning): subtracting, from each $x_i$, $\bar{x}$.\bigskip
+
+<<ch-11, echo=TRUE, size="footnotesize">>=
+out$x1mod <- out$x1 - mean(out$x1)
+out$x2mod <- out$x2 - mean(out$x2)
+cor(out$x1mod, out$x2mod) # cor(X1,X2) is the same
+@
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Solution: centering}
+
+<<ch-12, echo=TRUE, size="footnotesize">>=
+out$intermod <- out$x1mod * out$x2mod
+cor(out$x1mod, out$intermod) # Correlation
+cor(out$x2mod, out$intermod) # Correlation
+@
+
+Not so much a solution; more of a \textit{re-specification} of the original model.
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Solution: centering}
+
+Centering will produce different $b$s, $a$ and SEs, simply because these refer to different quantities.\bigskip
+
+After centering, $b_1$ is the effect of $X_1$ on $Y$ \underline{when $X_2$ is at its mean value}.\bigskip
+
+Please check \citeA[pp.~93--99]{kam_modeling_2007} for more information.
+
+\end{frame}
+
+
+
+\begin{frame}{Example: differences in salaries}
+
+<<ch-13, results='asis'>>=
+df_salary <- read.table("../02-data/Salary-survey.txt",
+                        header = TRUE)
+colnames(df_salary) <- c("salary", "exp", "educ", "manage")
+# Experience is measured in years, salary in USD,
+#   and management as 1 (yes) or 2 (no)
+
+df_salary %<>%
+    mutate(educ_cat = case_match(educ,
+                                 1 ~ "1.high-school",
+                                 2 ~ "2.bachelors",
+                                 3 ~ "3.MA or higher"),
+           exp_cent = exp - mean(exp))
+
+model1 <- lm(salary ~ exp_cent + manage,
+             data = df_salary)
+model2 <- lm(salary ~ exp_cent + manage + exp * manage,
+             data = df_salary)
+
+texreg(list(model1, model2), digits = 2,
+       single.row = TRUE,
+       custom.coef.names = c("(Intercept)", "Experience",
+                             "Management", "Exper. * Managem."),
+       custom.model.names = c("Model 1", "Model 2"),
+       booktabs = TRUE, dcolumn = TRUE, use.packages = FALSE,
+       fontsize = "footnotesize",
+       caption = "",
+       custom.note = "\\parbox{.9\\linewidth}{\\vspace{2pt}%stars. Standard errors in brackets. Experience has been centered by subtracting 7.5 from each value.\\\\
+       DV (outcome) is employee salary per year in USD.}")
+@
+
+\end{frame}
+
+
+
+
+\section{Confidence intervals: redux}
+\begin{frame}{Two ways of making inferences}
+
+\begin{itemize}
+\item NHST (null hypothesis significance testing)
+\item CIs (confidence intervals)
+\end{itemize}\bigskip
+
+NHST has been sometimes accused of presenting results in a far more favorable light than it should (because it focuses on point estimates).
+
+\end{frame}
+
+
+
+\begin{frame}{CIs}
+
+A second strategy is to construct an interval in which the effect could plausibly be in the population.\bigskip
+
+Step 1: Choose the significance level: $\alpha$ (could be 0.05, 0.01, or 0.001).\bigskip
+
+Step 2: Depending on the level, find the critical threshold on the $t$ distribution with specific d.f.\bigskip
+
+Step 3: The CI is $\lbrack b - t_{\frac{\alpha}{2}}\sigma_b; b + t_{\frac{\alpha}{2}}\sigma_b \rbrack$.
+
+\end{frame}
+
+
+
+\begin{frame}{CIs}
+
+What matters is:
+
+\begin{itemize}
+\item how wide is the interval: the wider, the more uncertain we are about the true effect in the population.\bigskip
+\item whether it intersects 0: if it does, we cannot be certain that the effect in the population is not 0.
+\end{itemize}
+
+95\% confidence interval: in 95 cases out of 100 the confidence interval contains the effect in the population. We don't know where inside, though!
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Sampling variability}
+
+<<ch-1, echo=TRUE, cache=TRUE, size="footnotesize">>=
+# Create some population data
+df_pop <- mvrnorm(10000000, # number of observations
+                  mu = c(5,6,7), # means of the variables
+                  # correlation matrix
+                  Sigma = matrix(c(1,0.4,0.75,
+                                   0.4,1,0,
+                                   0.75,0,1),
+                                 ncol = 3),
+                  empirical = TRUE)
+colnames(df_pop) <- c("Y", "X1", "X2")
+df_pop <- as.data.frame(df_pop)
+
+# Regress Y on X1 and X2
+model1 <- lm(Y ~ X1 + X2,
+             data = df_pop)
+@
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Sampling variability}
+
+<<ch-2, echo=TRUE, size="footnotesize">>=
+round(summary(model1)$coefficients, 3)
+@
+
+Effects in the population are $b_1=0.750$ and $b_2=0.400$.
+\end{frame}
+
+
+\begin{frame}[fragile]{One single sample}
+
+<<ch-3, echo=TRUE, size="footnotesize", cache=TRUE>>=
+# Randomly select a sample of 1,300
+set.seed(345529)
+df_sample <- df_pop[sample(nrow(df_pop), 1300), ]
+
+# Run the model on the sample
+modelsamp <- lm(Y ~ X1 + X2,
+                data = df_sample)
+@
+
+<<ch-4, echo=TRUE, size="footnotesize">>=
+round(summary(modelsamp)$coefficients,3)
+@
+
+In this sample we get effects of 0.416 and 0.745.
+\end{frame}
+
+
+\begin{frame}[fragile]{1,000 samples/regressions}
+
+<<ch-5, echo=TRUE, size="scriptsize", cache=TRUE>>=
+b1VEC <- NA # List of b1 coefficients
+seb1VEC <- NA # List of SE for b1
+b2VEC <- NA # List of b2 coefficients
+seb2VEC <- NA # List of SE for b2
+for (i in 1:1000) {
+  set.seed(i + 1982565)
+  df_sample <- df_pop[sample(nrow(df_pop), 1300), ] # Sample N=1,300
+  modelsamp <- lm(Y ~ X1 + X2, # Run regression again
+                data = df_sample)
+  b1VEC[i] <- modelsamp$coefficients[2] # Store b1
+  b2VEC[i] <- modelsamp$coefficients[3] # Store SE for b1
+  seb1VEC[i] <- sqrt(diag(vcov(modelsamp)))[2] # Store b2
+  seb2VEC[i] <- sqrt(diag(vcov(modelsamp)))[3] # Store SE for b2
+}
+@
+
+I run 1,000 regressions on different samples of size 1,300, and store the coefficients and SEs.
+\end{frame}
+
+
+\begin{frame}[fragile]{Distribution of $b_1$}
+
+\begin{figure}
+\centering
+<<ch-6, fig.height=2.5, fig.width=3.5>>=
+ggplot(NULL, aes(x = b1VEC))+
+  geom_density(color = "lightblue",
+               fill = "lightblue") +
+  xlab("Values of coefficients b1 from 1,000 regressions") +
+  ylab("Density") +
+  theme_clean()
+@
+\end{figure}
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Distribution of $b_2$}
+
+\begin{figure}
+\centering
+<<ch-7, fig.height=2.5, fig.width=3.5>>=
+ggplot(NULL, aes(x = b2VEC))+
+  geom_density(color = "lightblue",
+               fill = "lightblue") +
+  xlab("Values of coefficients b2 from 1,000 regressions") +
+  ylab("Density") +
+  theme_clean()
+@
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Confidence intervals}
+
+<<ch-8, echo=TRUE, size="scriptsize">>=
+df_coef <- as.data.frame(cbind(b1VEC, seb1VEC))
+colnames(df_coef) <- c("b1","se")
+df_coef$lower <- df_coef$b - 1.96 * df_coef$se
+df_coef$upper <- df_coef$b + 1.96 * df_coef$se
+sum(df_coef$lower > 0.4)
+sum(df_coef$upper < 0.4)
+@
+
+The CIs for the 1,000 regressions only exclude the actual value of the effect (0.4) in 47 cases out of 1,000.\bigskip
+
+95\% certainty roughly means 50 times out of 1,000.
+
+\end{frame}
+
+
+\begin{frame}[fragile]{More on CIs}
+See a visualization at \url{https://seeing-theory.brown.edu/frequentist-inference/index.html#section2}\bigskip
+
+\textbf{Correct interpretation}: if we took repeated samples of the same size from the population, and ran analysis again, in 95 times out of 100 the obtained CI from our sample would contain the population mean.
+
+\end{frame}
+
+
+\begin{frame}[fragile]{More on CIs}
+\textbf{Incorrect interpretations:}
+
+\begin{itemize}
+\item ``I am 95\% confident that my sample estimate is in this interval.''
+\item ``If we sample repeatedly, 95\% of all sample estimates will be in this interval.''
+\end{itemize}
+
+\end{frame}
+
+
+\section{Heteroskedasticity}
+
+\begin{frame}{Assumption of homoskedasticity}
+
+\begin{equation}
+Y_i = a + b_1X_{1i} + \dots + b_kX_{ki} + e_i
+\end{equation}
+
+This one targets the $e_i$, and specifically their variance---it must be constant, and not depend on any $X$s.
+
+\begin{equation}
+Var(e_i | X_1, \dots X_k) = \sigma_e^2
+\end{equation}
+
+Even when this assumption is violated, OLS estimates for $b$ are still unbiased (the bias depends on whether $E(\epsilon|x)=0$, not their variance).
+
+\end{frame}
+
+
+
+\begin{frame}{Assumption of homoskedasticity}
+
+However, in the presence of violations of homoskedasticity, the estimator loses its efficiency: $Var(b)$ is not as small as it could be.\bigskip
+
+No amount of sample increase can solve this problem $\Rightarrow$ $t$-tests will be imprecise.\bigskip
+
+\textit{Heteroskedasticity}: $Var(e_i) = h(X_1, \dots, X_k)$.\bigskip
+
+$h()$ is a generic function of the predictors in the model, either linear or nonlinear.
+\end{frame}
+
+
+\begin{frame}{Ocular impact test}
+
+Does it hit you right between the eyes when you plot it?
+
+<<ch-16, eval=FALSE>>=
+# The data set is from the "wooldridge" package
+data("crime1")
+
+model1 <- lm(narr86 ~ pcnv + avgsen + ptime86 +
+               qemp86 + inc86 + black + hispan,
+             data = crime1,
+             na.action = na.omit)
+
+pdf("../04-graphs/05-01.pdf", height = 5, width = 7)
+plot(fitted(model1), studres(model1),
+     xlab = "Fitted values",
+     ylab = "Studentized residuals")
+abline(h = 0, lty = 2)
+lines(lowess(fitted(model1), studres(model1)), col = "blue")
+dev.off()
+@
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.45]{../04-graphs/05-01}
+\caption{Predicting \# of arrests in 1986}
+\end{figure}
+
+\end{frame}
+
+
+\begin{frame}{Ocular impact test}
+
+<<ch-17, eval=FALSE>>=
+# This data is from the "AER" package
+data("CPSSWEducation")
+
+graph1 <- ggplot(CPSSWEducation,
+                 aes(x = education,
+                     y = earnings)) + 
+  geom_point(size = 2) +
+  labs(x = "Education",
+       y = "Hourly earnings") +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_clean()
+ggsave(graph1,
+       filename = "../04-graphs/05-02.pdf",
+       height = 5, width = 7, dpi = 250)
+rm(graph1, CPSSWEducation)
+@
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{../04-graphs/05-02}
+\caption{Predicting earnings for 29--30 year olds in US (2004)}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Ocular impact test}
+
+<<ch-18, eval=FALSE>>=
+# This data is sourced from the "wooldridge" package
+data("gpa3")
+
+model3 <- lm(cumgpa ~ sat + hsperc + tothrs + female,
+             data = gpa3,
+             na.action = na.omit)
+
+pdf("../04-graphs/05-03.pdf", height = 5, width = 7)
+plot(fitted(model3), studres(model3),
+  xlab = "Fitted values", ylab = "Studentized residuals")
+abline(h = 0, lty = 2)
+lines(lowess(fitted(model3), studres(model3)), col="blue")
+dev.off()
+
+rm(gpa3, model3)
+@
+
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.4]{../04-graphs/05-03}
+\caption{Predicting students' GPAs in college}
+\end{figure}
+
+It can be effective, but only in the cases when there are glaring disparities between variances.
+\end{frame}
+
+
+\begin{frame}{Statistical tests: Breusch--Pagan}
+
+Take the standard form of the linear model:
+
+\begin{equation}
+Y_i = a + b_1X_{1i} + \dots + b_kX_{ki} + e_i
+\end{equation}
+
+The null hypothesis of the test is that $Var(e_i | X_1, \dots, X_k) = \sigma_e^2$.\bigskip
+
+What we want to check is that there is no association between $e_i$, and any function that can be produced with the $X$s.
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Statistical tests: Breusch--Pagan}
+
+The most important fact to remember is $H_0$ (!): homoskedasticity.\bigskip
+
+For everything to be OK with your model, you would like not to reject $H_0$ (so the test should not be statistically significant).
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Solutions to the problem}
+
+\begin{enumerate}
+\item Heteroskedasticity-robust SEs: they address problems with SEs, and leave $b$s alone;
+\item Weighted Least Squares (WLS): when we can approximate the functional form of $h()$;
+\item Feasible Generalized Least Squares (FGLS): we estimate the form of $h()$ from the same data;
+\item Examining and improving on the original model specification.
+\end{enumerate}
+
+\end{frame}
+
+
+
+
+\section{Logistic regression}
+
+\begin{frame}{\textit{Quo Vadis?}}
+
+A linear model, estimated with \textit{ordinary least squares}, is flexible, but does not cover all the empirical manifestations of data that exist out there.\bigskip
+
+Categorical dependent variables:
+
+\begin{itemize}
+\item 2 categories (turnout, unemployment \dots): logit/probit regression (David R. Cox in 1958);
+\item ordered categories (e.g. Likert scales): ordered logit/probit regression;
+\item unordered categories (e.g. party choice): multinomial logit/probit regression.
+\end{itemize}
+
+\end{frame}
+
+
+
+\begin{frame}{Going past the linear model}
+  What the linear model tries to do is relate a combination of $X$s to $Y$:
+
+  \begin{equation}
+    E(Y | X) = a + b_1X
+  \end{equation}
+
+  We are basically trying to model the expectation (mean) of $Y$ at each level of $X$.
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Dichotomous outcome}
+Assume we have measurements on a rubber seal from a set of rocket boosters.
+
+The critical factor determining whether the seals will break is temperature: under cooler air, the seals break.
+
+\begin{figure}[!ht]
+\centering
+	\begin{tikzpicture}[scale=0.65]
+	\pgfplotstableread{
+x y
+53  1
+57  1
+58  1
+63  1
+66  0
+67  0
+67  0
+67  0
+68  0
+69  0
+70  0
+70  0
+70  1
+70  1
+72  0
+73  0
+75  0
+75  1
+76  0
+78  0
+79  0
+81  0
+76  0
+54  1
+56  1
+57  0
+60  1
+59  1
+61  1
+62  1
+51  1
+47  1
+}\loadedtable
+	\begin{axis}[
+	xlabel=Temperature (F), % label x axis
+	ylabel=Seal status, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=45, xmax=85, % set the min and max values of the x-axis
+	ymin=-0.1, ymax=1.1, % set the min and max values of the y-axis
+	ytick={0,1},
+	yticklabels={Non-failure, Failure},
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+	\end{axis}
+	\end{tikzpicture}
+	\end{figure}
+
+\end{frame}
+
+
+\begin{frame}{Modeling the expectation}
+In the continuous outcome case, we tried to model $E(Y | X=x_i)$.\bigskip
+
+There is no reason the same strategy couldn't work for the dichotomous case.\bigskip
+
+Imagine there are only 3 temperature levels: low (up to 60\degree F), middle (61-70\degree F), and high (over 70\degree F).\bigskip
+
+At each temperature level, the mean of $Y$ is simply $\frac{\# Success}{\# Total}$.
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Modeling the expectation}
+Let's call $E(Y | X=x_i)$ by $\pi_i$.
+
+\begin{figure}[!ht]
+\centering
+	\begin{tikzpicture}[scale=0.75]
+	\pgfplotstableread{
+x y
+53  1
+57  1
+58  1
+63  1
+66  0
+67  0
+67  0
+67  0
+68  0
+69  0
+70  0
+70  0
+70  1
+70  1
+72  0
+73  0
+75  0
+75  1
+76  0
+78  0
+79  0
+81  0
+76  0
+54  1
+56  1
+57  0
+60  1
+59  1
+61  1
+62  1
+51  1
+47  1
+}\loadedtable
+	\begin{axis}[
+	xlabel=Temperature (F), % label x axis
+	ylabel=Seal status, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=45, xmax=85, % set the min and max values of the x-axis
+	ymin=-0.1, ymax=1.1, % set the min and max values of the y-axis
+	ytick={0,1},
+	yticklabels={Non-failure, Failure},
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+	\draw[very thick, dashed, title] (150,0)--(150,120);
+	\draw[very thick, dashed, title] (250,0)--(250,120);
+	\node [fill=none] (A) at (75,60) {\scriptsize{\textcolor{title}{$\pi_{lo}=0.90$}}};
+	\node [fill=none] (B) at (200,60) {\scriptsize{\textcolor{title}{$\pi_{mid}=0.38$}}};
+	\node [fill=none] (C) at (325,60) {\scriptsize{\textcolor{title}{$\pi_{hi}=0.11$}}};
+	\end{axis}
+	\end{tikzpicture}
+	\end{figure}
+
+$\pi_i$ = average rate of failure for temperature level $i$.
+
+\end{frame}
+
+
+
+\begin{frame}{Modeling $\pi_i$}
+When we make the categories on $X$ finer and finer, we get many more $\pi_i$ values.\bigskip
+
+The question is how to model them, given that they are bounded by 0 and 1?\bigskip
+
+The big problem is that using a linear model directly on $\pi_i$ could produce fitted values lower than 0 or higher than 1.\bigskip
+
+Other problems also exist, connected to the errors from such a modeling attempt. These $e_i$ are neither normally distributed nor homoskedastic.
+
+\end{frame}
+
+
+\begin{frame}{Modeling $\pi_i$: link function}
+  We have to relate a quantity $\pi_i$, which ranges from 0 to 1, to a quantity $a + b_1X_1 + \dots + b_kX_k$ which could theoretically range from $-\infty$ to $\infty$.\bigskip
+
+  This is where the ``link function'' steps in, and acts as a translator between the two.\bigskip
+
+  One link function for our case is $log(\frac{\pi_i}{1-\pi_i})$.\bigskip
+
+  If you think about it, linear regression was a special case of this---it used the ``identity'' link function.
+\end{frame}
+
+
+
+\begin{frame}{The link function}
+
+\begin{table}[ht]
+  \centering
+  \footnotesize
+  \begin{tabular}{D{.}{.}{3} D{.}{.}{3} D{.}{.}{3}}
+    \toprule[0.3em]
+ Prob.   & Odds  & Logit  \\
+   \pi  & \frac{\pi}{1-\pi} & log_e\frac{\pi}{1-\pi}  \\
+    \midrule
+ .01 & 1/99=0.0101 & -4.60 \\
+ .05 & 5/95=0.0526 & -2.94 \\
+ .10 & 1/9=0.1111 & -2.20 \\
+ .30 & 3/7=0.4286 & -0.85  \\
+ .50 & 5/5=1 & 0.00  \\
+ .70 & 7/3=2.3333 & 0.85 \\
+ .90 & 9/1=9 & 2.20  \\
+ .95 & 95/5=19 & 2.94 \\
+ .99 & 99/1=99 & 4.60 \\
+    \bottomrule[0.3em]
+  \end{tabular}
+  \label{fig:fig-01}
+  \caption{Table from \citeA{fox_applied_2008}.}
+\end{table}
+
+\end{frame}
+
+
+
+\begin{frame}{Logit model}
+
+  \begin{equation}
+    \log_e\frac{\pi}{1 - \pi} = a + b_1X_1 + \dots + b_kX_k
+  \end{equation}
+
+  The use of link functions opens up the linear regression framework to a whole new set of dependent variables: dichotomous, categorical, ordered categories, or counts.\bigskip
+
+  Together, they constitute the \textit{Generalized Linear Model} (GLM) framework, of which linear regression can be considered a special case.
+
+\end{frame}
+
+
+\begin{frame}{Coefficients in logistic models}
+  The ``translation'' performed by the link function has some unintended consequences, particularly on the coefficients.\bigskip
+
+  If the same rule as for linear regression would apply, a 1-unit change in $X_k$ would produce a $b_k$ change in $\pi_i$.\bigskip
+
+  \underline{The same rule does not apply}. $b_1$ is not expressed in units of $\pi$, but in units of $\log_e\frac{\pi}{1-\pi}$.
+
+  A 1-unit increase in $X_k$ produces a $b_k$ change in the log of the odds of $Y=1$ as opposed to $Y=0$.
+\end{frame}
+
+
+
+\begin{frame}{Translating back to $\pi$}
+  A back-conversion process needs to be done, for a more intuitive presentation.
+
+  \begin{enumerate}
+  \item convert back to odds, by computing $exp(b_k)$;
+  \item convert even further back, to probabilities $\pi_i$.
+  \end{enumerate}
+
+  Any standard statistical software package could do these automatically, if requested.
+
+\end{frame}
+
+
+\subsection{Example}
+
+\begin{frame}[fragile]{Challenger O-rings data}
+
+  \begin{figure}[!ht]
+\centering
+	\begin{tikzpicture}[scale=0.75]
+	\pgfplotstableread{
+x y
+53  1
+57  1
+58  1
+63  1
+66  0
+67  0
+67  0
+67  0
+68  0
+69  0
+70  0
+70  0
+70  1
+70  1
+72  0
+73  0
+75  0
+75  1
+76  0
+78  0
+79  0
+81  0
+76  0
+}\loadedtable
+	\begin{axis}[
+	xlabel=Temperature (F), % label x axis
+	ylabel=Seal status, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=50, xmax=85, % set the min and max values of the x-axis
+	ymin=-0.1, ymax=1.1, % set the min and max values of the y-axis
+	ytick={0,1},
+	yticklabels={Non-failure, Failure},
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+	\end{axis}
+	\end{tikzpicture}
+      \end{figure}
+
+The data also identifies how many of the 6 O-rings failed, but here I only focus on failure, ignoring the number.
+
+\end{frame}
+
+
+\begin{frame}{Example: Challenger data}
+
+<<ch-14, comment=NA, results='asis'>>=
+df_chal <- read.table(file = "../02-data/Challenger-rings.txt",
+                      header = TRUE)
+
+df_chal %<>%
+    mutate(damaged = if_else(Damaged == 2, 1, Damaged))
+
+model1 <- glm(damaged ~ Temp,
+              data = df_chal,
+              family = binomial(link = "logit"))
+
+texreg(list(model1), digits = 3, single.row = FALSE,
+       custom.model.names = c("DV: O-ring failure"),
+       custom.coef.names = c("(Intercept)", "Temperature"),
+       booktabs = TRUE, dcolumn = TRUE, use.packages = FALSE,
+       label = "tab:tab-01", caption = "Predicting O-rings failure",
+       fontsize = "footnotesize")
+@
+
+\end{frame}
+
+
+\begin{frame}{Interpreting coefficients}
+b=\Sexpr{round(coef(model1)[2], digits=3)}, which means that a 1\degree F increase is associated with a \textit{decrease} in the logged odds of failure (as opposed to non-failure) of 0.232.\bigskip
+
+It is not very meaningful, although it tells us that the effect is negative.\bigskip
+
+The odds ratio (OR) is \Sexpr{round(exp(coef(model1)[2]), digits=3)}, which means that a 1\degree F increase is associated with a 20.7\% decrease in the odds of failure.
+
+\end{frame}
+
+
+
+\begin{frame}{Graphical depiction}
+
+<<ch-15, eval=FALSE>>=
+df_newdat <- data.frame(Temp = seq(55, 85, by = 0.1))
+df_pred <- predict(model1,
+                   newdata = df_newdat,
+                   se.fit = TRUE,
+                   type = "response")
+
+df_newdat$Pred <- df_pred$fit
+df_newdat$SEpred <- df_pred$se.fit
+
+df_newdat$lwrCI <- df_newdat$Pred - 2.1 * df_newdat$SEpred
+df_newdat$uprCI <- df_newdat$Pred + 2.1 * df_newdat$SEpred
+
+graph1 <- ggplot(df_newdat,
+       aes(x = Temp,
+           y = Pred)) +
+  geom_point() +
+  labs(x = "Temperature (F)",
+       y = "Probability") +
+  geom_ribbon(aes(ymin = lwrCI,
+                  ymax = uprCI),
+              alpha = 0.3) +
+  scale_y_continuous(labels = percent) +
+  theme_clean()
+ggsave(graph1,
+       filename = "../04-graphs/05-04.pdf",
+       height = 3,
+       width = 5,
+       dpi = 250)
+rm(graph1)
+@
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.7]{../04-graphs/05-04.pdf}
+\caption{Predicted probabilities (with uncertainty)}
+\end{figure}
+
+\end{frame}
+
+
+\begin{frame}{Model fit}
+Estimation is done through \textit{Maximum Likelihood} (ML), which means measures of model fit are different.\bigskip
+
+AIC, BIC, \textit{logLikelihood}, \textit{deviance}---based on the maximized likelihood function.\bigskip
+
+A variety of $R^2$ measures exist (Nagelkerke, Cox and Snell, McFadden etc.), but \textbf{they are not to be interpreted as share of explained variance}.\bigskip
+
+Their interpretation is, rather, a sort of ``proportional reduction in mis-fit''.
+
+\end{frame}
+
+
+% FRAME
+\begin{frame}
+\begin{center}
+    \Huge Thank \textcolor{title}{you} for the kind attention!
+\end{center}
+\end{frame}
+
+% REFERENCES %
+
+
+\begin{frame}[plain, allowframebreaks]
+
+\renewcommand{\section}[2]{}
+\bibliographystyle{apacite}
+\bibliography{Bibliography}
+\end{frame}
+
+\end{document}

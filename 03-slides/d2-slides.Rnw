@@ -1,0 +1,913 @@
+\documentclass[12pt,english,pdf,dvipsnames,aspectratio=169]{beamer}
+\usepackage{fontspec}
+\setsansfont[Mapping=tex-text]{Fira Sans}
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\usepackage[normalem]{ulem}
+\usepackage[T1]{fontenc}
+\usepackage{dcolumn}
+\usepackage{booktabs}
+\usepackage{setspace}
+\makeatletter
+\usetheme{metropolis}
+\usepackage{mathpazo}
+\usepackage{xcolor}
+\definecolor{title}{RGB}{255,98,0}
+\definecolor{fore}{RGB}{54,69,79}
+\usepackage{tikz, tikz-cd}
+\usetikzlibrary{shapes,backgrounds,trees,decorations.pathreplacing}
+\usepackage[labelformat=empty]{caption}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15}
+\usepgfplotslibrary{fillbetween}
+\usepackage{pgfplotstable}
+\usepackage[sectionbib]{apacite}
+\renewcommand{\bibliographytypesize}{\footnotesize}
+\usepackage{amsmath}
+\usepackage{polyglossia}
+\setdefaultlanguage[variant=american]{english}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{wrapfig}
+\usepackage{hyperref}
+\hypersetup{pdfauthor={Constantin Manuel Bosancianu},
+pdftitle={Linear regression with R/Stata},
+pdfsubject={Day 2: Simple and multiple regression},
+pdfkeywords={Bamberg, ECPR, 2019, day 2, WSMT}}
+% Defines a checkmark
+\def\checkmark{\tikz\fill[scale=0.4, color=title](0,.35) -- (.25,0) -- (1,.7) -- (.25,.15) -- cycle;}
+\setbeamertemplate{itemize items}{\checkmark}
+% Small underbrace
+\def\smallunderbrace#1{\mathop{\vtop{\m@th\ialign{##\crcr
+   $\hfil\displaystyle{#1}\hfil$\crcr
+   \noalign{\kern3\p@\nointerlineskip}%
+   \tiny\upbracefill\crcr\noalign{\kern3\p@}}}}\limits}
+   
+\title{\textsc{Linear Regression with R/Stata}}
+\subtitle{Day 2: Simple and Multiple Regression}
+\author{Constantin Manuel Bosancianu}
+\institute{Wissenschaftszentrum Berlin \\ \textit{Institutions and Political Inequality} \\\href{mailto:bosancianu@icloud.com}{bosancianu@icloud.com}}
+\date{February 26, 2019}
+\begin{document}
+\maketitle
+% PREAMBLE %
+
+<<options, eval=TRUE, echo=FALSE, message=FALSE>>=
+library(pacman)
+p_load(tidyverse, knitr, foreign, magrittr, texreg,
+       ggthemes)
+
+opts_chunk$set(message = FALSE,
+               warning = FALSE,
+               comment = NA,
+               echo = FALSE,
+               eval = TRUE)
+@
+
+\section{Preamble}
+
+
+\begin{frame}{Recap from yesterday}
+
+\begin{itemize}
+\item Simple regression can be used to summarize a linear relationship between two variables: outcome ($Y$) and predictor ($X$);
+\item OLS (\textit{ordinary least squares}) is based on the attempt to minimize the sum of the squared distances between line and points (\textit{sum of squared errors}, SSE);
+\item The position of the line is given by 2 quantities:
+\begin{itemize}
+\item $a$: the intercept, or the value of the outcome when the predictor is 0;
+\item $b$: the slope, or the increase in the outcome when predictor increases by 1.
+\end{itemize}
+
+\end{itemize}
+
+\end{frame}
+
+
+
+\begin{frame}{Recap from yesterday}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=5, % set the min and max values of the x-axis
+ymin=0, ymax=10, % set the min and max values of the y-axis
+clip=false
+]
+
+\draw [very thick] (50,20) -- (400,80);
+\draw [dotted, ->, >=stealth] (200,0)--(200,44.5);
+\draw [dotted, ->, >=stealth] (300,0)--(300,61.5);
+\node [circle, fill, inner sep=-2pt] (A) at (200,45.7) [label=\scriptsize{$\hat{y_1}$}] {};
+\node [circle, fill, inner sep=-2pt] (B) at (300,62.7) [label=\scriptsize{$\hat{y_2}$}] {};
+\draw [thick,->,>=stealth] (200,10)--(300,10) node [midway,above] {\tiny{1-unit}};
+\draw [thick,->,>=stealth] (200,10)--(300,10) node [midway,below] {\tiny{difference}};
+\draw [dotted, ->, >=stealth] (200,45.5)--(0,45.5);
+\draw [dotted, ->, >=stealth] (300,62.5)--(0,62.5);
+\draw[decorate,decoration={brace, mirror}] (10,45.5) -- node[right] {\tiny{$b$ change}} (10,62.5);
+% Draw the intercept line
+\draw [very thick, dotted] (0,11.42857) -- (50,20);
+\draw[decorate,decoration={brace}] (-5,0) -- node[left] {\tiny{$a$}} (-5,11.42857);
+\end{axis}
+\end{tikzpicture}
+\caption*{Slope interpretation (the predicted value of $Y$ for a specific value of $X$, $x_i$, is $\hat{y}_i$)}
+\label{fig:fig-01}
+\end{figure}
+
+\end{frame}
+
+
+\begin{frame}{Clarification about ``increase''}
+
+It's not a temporal increase, e.g. ``country X's GDP increased by 2.3\% between 2015 and 2016''.\bigskip
+
+In our case, it simply means a static comparison of levels.\bigskip
+
+Think back to yesterday: income inequality and infant mortality. Countries with level $c+1$ of inequality have, on average, 0.78 more infant deaths per 1000 live births, than countries with $c$ level of inequality.
+
+\end{frame}
+
+
+\begin{frame}{Outline}
+
+Today's topics:
+
+\begin{itemize}
+\item Assessing how well the line fits the data;
+\item From simple to multiple regression: multiple predictors;
+\item (if we have time) Inference from sample to population for simple regression.
+\end{itemize}
+\bigskip
+
+\end{frame}
+
+
+
+
+
+
+\section{Model fit}
+
+\begin{frame}[fragile]{Assessing model fit}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+\pgfmathsetseed{1144} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+    create on use/x/.style={create col/expr={42+2*\pgfplotstablerow}},
+    create on use/y/.style={create col/expr={(0.6*\thisrow{x}+130)+15*rand}}
+}
+% create a new table with 30 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{30}\loadedtable
+
+% Calculate the regression line
+\pgfplotstablecreatecol[linear regression]{regression}{\loadedtable}
+
+\pgfplotsset{
+    colored residuals/.style 2 args={
+        only marks,
+        scatter,
+        point meta=explicit,
+        colormap={redblue}{color=(#1) color=(#2)},
+        error bars/y dir=minus,
+        error bars/y explicit,
+        error bars/draw error bar/.code 2 args={
+            \pgfkeys{/pgf/fpu=true}
+            \pgfmathtruncatemacro\positiveresidual{\pgfplotspointmeta<0}
+            \pgfkeys{/pgf/fpu=false}
+            \ifnum\positiveresidual=0
+                \draw [#2] ##1 -- ##2;
+            \else
+                \draw [#1] ##1 -- ##2;
+            \fi
+        },
+        /pgfplots/table/.cd,
+            meta expr=(\thisrow{y}-\thisrow{regression})/abs(\thisrow{y}-\thisrow{regression}),
+            y error expr=\thisrow{y}-\thisrow{regression}
+    },
+    colored residuals/.default={Red}{NavyBlue}
+}
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=40, xmax=105, % set the min and max values of the x-axis
+ymin=140, ymax=200, % set the min and max values of the y-axis
+]
+
+\makeatletter
+\addplot [colored residuals] table {\loadedtable};
+\addplot [
+    no markers,
+    thick,
+] table [y=regression] {\loadedtable} ;
+\end{axis}
+\end{tikzpicture}
+\caption*{Residuals from yesterday (blue is positive, red is negative)}
+\label{fig:fig-02}
+\end{figure}
+
+\end{frame}
+
+
+\subsection{Residual standard error}
+\begin{frame}{Using the residuals}
+We can think of model fit as the extent to which the line fits the cloud of points that represents the data.\bigskip
+
+The residuals are a clear instrument for that.\bigskip
+
+\begin{itemize}
+\item a good fit $\Rightarrow$ the points huddle close around the line $\Rightarrow$ the residuals tend to be small;
+\item a bad fit $\Rightarrow$ the points are far away from the line $\Rightarrow$ the residuals tend to be large;
+\end{itemize}
+
+The standard deviation of the residuals is a good measure (a.k.a. \textit{residual standard error} or the \textit{standard error of the regression}).
+
+\end{frame}
+
+
+\begin{frame}{Residual standard error}
+
+\begin{equation}
+\sigma_{e} = \sqrt{\frac{\sum_{i=1}^ne_i^2}{n-k-1}}
+\label{eq:eq-01}
+\end{equation}
+
+$e_i$ are the residuals, $n$ is the sample size, and $k$ is the number of predictors in the regression model. In our case now, $k=1$.\bigskip
+
+The $e_i$ are on the same scale as $Y$. \textcolor{title}{Why?} If we denote $a + bY$ by $\hat{Y}$, then $e_i = Y_i - \hat{Y}_i$. Every point on the regression line has coordinates $(X; a + bY)$. $\sqrt{e^2}$ maintains the metric of $e$.\bigskip
+
+$\sigma_e$ can be interpreed as a sort of ``average residual''.
+
+\end{frame}
+
+
+
+ \begin{frame}{Example: California 1992}
+ 
+<<ch-1>>=
+df_counties <- read.spss(file = "../02-data/counties1992.sav",
+                         to.data.frame = TRUE,
+                         use.value.labels = FALSE)
+
+df_cal <- df_counties %>%
+    mutate(county = as.character(county),
+           county = str_trim(county),
+           state = as.character(state),
+           state = str_trim(state)) %>%
+    filter(state == "CA")
+
+model1 <- lm(democrat ~ college,
+             data = df_cal,
+             na.action = na.omit)
+@
+
+<<ch-2, eval=FALSE>>=
+graph1 <- ggplot(df_cal,
+                 aes(x = college,
+                     y = democrat)) +
+  geom_point(size = 1.5, color = "#36454f") + 
+  geom_text(aes(label = county),
+            vjust = 0, nudge_y = 0.5,
+            size = 2.5, color = "#36454f") +
+  theme_clean() +
+  labs(x = "% college educated",
+       y = "% Democrat vote") +
+  geom_smooth(method = "lm", se = FALSE, color = "#ff6200")
+ggsave(graph1,
+       filename = "../04-graphs/02-01.pdf",
+       height = 4, width = 6, dpi = 250)
+rm(graph1)
+@
+ 
+ \begin{figure}
+ \centering
+ \includegraphics[scale=0.65]{../04-graphs/02-01.pdf}
+ \caption*{Education and Democratic support in California, 1992 (county-level data)}
+ \end{figure}
+ 
+ \end{frame}
+ 
+ 
+ 
+\begin{frame}{Example: California 1992}
+Residual standard error is \Sexpr{round(summary(model1)$sigma, 2)}. This means that the ``average residual'' is about 6.8 percentage points.\bigskip
+
+In our context, it's quite a lot of error to have. However, so far we only have one predictor in the model.\bigskip
+
+It's an intuitive measure of model fit, that doesn't get mentioned very often.
+
+\end{frame}
+
+
+
+
+\subsection{$R^2$}
+
+\begin{frame}{The coefficient of determination, $R^2$}
+The ``standard'' measure of fit for OLS regression: $R^2$.\bigskip
+
+Has the name $R^2$ because for simple regression it's value is the square of Pearson's $r$, $r_{XY}^2$.\bigskip
+
+It's (almost) always positive, and ranging between 0 and 1, with higher values meaning a better model fit.\bigskip
+
+Unfortunately, it's not very intuitive.
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]{$R^2$---components}
+
+\begin{figure}
+	\centering
+	\begin{tikzpicture}
+	\pgfplotstableread{
+x y
+28.7999992370605	63
+24	34.0999984741211
+14	34.2000007629395
+19.5	38.2000007629395
+14.3999996185303	35.2000007629395
+11.1000003814697	31.8999996185303
+31.6000003814697	50.9000015258789
+10	38.9000015258789
+20.7999992370605	32.4000015258789
+16.8999996185303	42.2000007629395
+9.39999961853027	30.2000007629395
+20	48.0999984741211
+9.69999980926514	43.9000015258789
+13.5	31.7999992370605
+13.3000001907349	33.7999992370605
+9	38.9000015258789
+10.6999998092651	45.4000015258789
+11.6999998092651	32.7000007629395
+22.2999992370605	52.5
+11.6999998092651	35.9000015258789
+44	58.2999992370605
+16.7999992370605	36.5
+17.7999992370605	50.2000007629395
+12	40.9000015258789
+11.1999998092651	32.2000007629395
+21.8999996185303	34.2000007629395
+21.5	47
+22.2999992370605	45.2999992370605
+22.1000003814697	34.9000015258789
+27.7999992370605	31.6000003814697
+22.7000007629395	33.7000007629395
+15.1000003814697	37.5999984741211
+14.6000003814697	38.5999984741211
+23	43.5999984741211
+14.3999996185303	42
+14.8999996185303	38.7000007629395
+25.2999992370605	37.2000007629395
+35	72.4000015258789
+13.1999998092651	41.2999992370605
+22.8999996185303	38.4000015258789
+31.2999992370605	54
+26.6000003814697	42.5
+32.5999984741211	49.2000007629395
+29.7000007629395	58.0999984741211
+13.6999998092651	31.6000003814697
+15.8999996185303	34.7999992370605
+14.1999998092651	39.9000015258789
+18.7000007629395	48.7000007629395
+24.5	52.7999992370605
+13	40.9000015258789
+15.3999996185303	30.5
+10.1999998092651	35.7999992370605
+12.8999996185303	32.5999984741211
+11.8000001907349	35.2000007629395
+14.6999998092651	38.0999984741211
+23	37
+30.2999992370605	53.2999992370605
+9.5	34.2000007629395
+}\loadedtable
+
+	\begin{axis}[
+	xlabel=\% college degree, % label x axis
+	ylabel=\% vote for Democrat, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=0, xmax=50, % set the min and max values of the x-axis
+	ymin=20, ymax=80, % set the min and max values of the y-axis
+  xticklabel={\pgfmathparse{\tick}\pgfmathprintnumber{\pgfmathresult}\%},
+  yticklabel={\pgfmathparse{\tick}\pgfmathprintnumber{\pgfmathresult}\%},
+	clip=false
+	]
+
+ \addplot [only marks] table {\loadedtable};
+ \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+\draw [dotted, title, very thick] (0,210) -- (500,210);
+\node[draw=none,fill=none] (A) at (40,240) {\footnotesize{$\textcolor{title}{\bar{Y}=41}$}};
+\draw [dotted, title, thick] (350,0) -- (350,550);
+\node[draw=none,fill=none] (B) at (400,20) {$\textcolor{title}{\tiny{x_i=35}}$};
+% Braces
+\draw[decorate,decoration={brace, aspect=0.65}] (355,524) -- node[right, yshift=-12] {\scriptsize{$Y_i - \bar{Y}$}} (355,210);
+\draw[decorate,decoration={brace,mirror, aspect=0.65}] (345,524) -- node[left,yshift=-7] {\tiny{$Y_i - \hat{Y_i}$}} (345,335);
+\draw[decorate,decoration={brace,mirror}] (345,324) -- node[left] {\tiny{$\hat{Y_i} - \bar{Y}$}} (345,210);
+\node[draw=none,fill=none] (C) at (360,540) {\scriptsize{$Y_i$}};
+\node[circle, title, fill=title, scale=0.4] (D) at (350,335) {};
+	\end{axis}
+	\end{tikzpicture}
+	\caption*{California 1992---focus on San Francisco.}
+	\label{fig:fig-03}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{$R^2$---components}
+
+\begin{itemize}
+\item $Y_{i} - \bar{Y}$ = \textit{total} deviation from the mean;
+\item $\hat{Y_i} - \bar{Y}$ = \textit{explained} deviation from the mean;
+\item $Y_i - \hat{Y_i}$ = \textit{unexplained} deviation out of the total deviation.
+\end{itemize}
+
+Based on these, we can define 3 quantities:
+
+\begin{itemize}
+\item $\sum_{i=1}^n(Y_i - \bar{Y})^2$ = total sum of squared deviations (TSS);
+\item $\sum_{i=1}^n(\hat{Y_i} - \bar{Y})^2$ = regression (explained) sum of squared deviations (RegSS);
+\item $\sum_{i=1}^n(Y_i - \hat{Y_i})^2$ = residual (unexplained) sum of squared deviations (RSS).
+\end{itemize}
+
+\end{frame}
+
+
+
+
+\begin{frame}{$R^2$---components}
+
+\textcolor{title}{$TSS = RegSS + RSS$}\bigskip
+
+$R^2 = \frac{RegSS}{TSS}$. You can see it as the percentage of the TSS that is explained by our regression model.\bigskip
+
+You'll also find it as the share of variance in the outcome explained by our model.\bigskip
+
+For our regression, $R^2$ = \Sexpr{round(summary(model1)$r.squared, 4)}. About \Sexpr{round(summary(model1)$r.squared, 2)*100}\% of the variance in Democratic vote share is explained by education.
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{$R^2$---examples}
+
+\begin{figure}[!ht]
+\centering
+	\begin{tikzpicture}[scale=0.50]
+	\pgfplotstableread{
+x y
+6.183633427	19.05773058
+9.667427023	22.52087605
+14.64188478	28.38998149
+7.029781727	20.66647059
+8.049981253	19.4950406
+11.93099713	23.73500207
+4.581147348	18.7180023
+2.401523703	15.46896007
+17.44048374	34.17224995
+14.31786947	28.98724457
+12.09027404	25.76557115
+12.23589785	23.25863774
+5.984409527	21.86963341
+8.797273127	20.20063037
+12.29236569	25.18085965
+2.337198193	11.99952621
+8.534031044	21.08817201
+14.23720621	27.23300598
+12.34816257	28.34878532
+6.29477111	16.27644034
+9.081596121	22.66895741
+13.89861372	31.62698858
+11.5409942	24.89326286
+10.08283438	23.86428618
+2.601376486	11.19123402
+6.063345799	18.55785361
+10.21541817	24.08842567
+15.3990728	29.28754572
+10.17872861	23.49947145
+10.77087524	23.3100841
+11.03087434	24.97031974
+8.788367098	19.88298034
+11.85225848	28.36562643
+14.81525525	32.11330743
+0.045986304	11.39023846
+10.9809947	25.53396719
+11.64820584	25.34460377
+13.55323689	26.43767745
+18.42711509	32.77872853
+14.90968136	33.89169966
+17.65425526	32.01815834
+18.74849899	32.29278975
+9.359892525	21.31906622
+9.37595771	18.83704121
+13.10837297	28.9137295
+11.18634499	26.16752935
+10.26466529	27.48643068
+15.33764424	34.57573228
+6.094142227	21.47710488
+14.49299685	37.81477197
+}\loadedtable
+	\begin{axis}[
+	xlabel=X, % label x axis
+	ylabel=Y, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=0, xmax=20, % set the min and max values of the x-axis
+	ymin=10, ymax=40, % set the min and max values of the y-axis
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+  \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+	\node[draw,align=left] at (150,35) {$R^2=0.8561$};
+	\end{axis}
+	\end{tikzpicture}
+	\begin{tikzpicture}[scale=0.50]
+	\pgfplotstableread{
+x y
+4.253428575	18.54057567
+11.5139069	14.89805002
+11.06492875	17.33195294
+9.441306444	20.99100188
+17.65376244	11.95232334
+-2.000524392	2.925040585
+7.268202187	14.78388208
+8.870781976	5.262352387
+8.797980588	9.151559929
+6.72726068	23.44700808
+17.31725967	8.803451329
+11.4248378	23.23117316
+10.4299091	27.25158662
+6.013183124	6.367517885
+-0.132898514	17.79320974
+16.16281427	21.79924807
+11.81684591	18.93986323
+5.424404089	4.256043531
+2.65486967	13.75487637
+8.425756769	12.14258547
+7.290150726	6.999576022
+10.46558084	10.11192387
+10.13992081	15.0694894
+12.89404768	7.584877458
+8.274747785	20.98525122
+0.479563107	6.698246553
+9.100308229	21.24708423
+1.979980413	16.23081118
+7.549652411	13.95505993
+11.43422575	21.59407764
+13.47129738	19.16611808
+7.314881015	10.67681198
+11.27480028	0.156715042
+18.5212514	16.80531443
+9.226928637	7.115155627
+12.63701336	3.914032029
+18.60075129	17.86490946
+4.405628819	11.34085842
+8.511612805	1.666117062
+11.79125978	10.18741151
+16.47408318	6.668654787
+13.98659033	10.09578351
+10.07750798	28.32371809
+9.671279231	15.61025863
+5.695539906	14.67090694
+10.03144588	18.99015793
+7.81741094	20.90220879
+17.44928727	11.63052197
+11.01917211	18.14459455
+8.200017747	15.21396071
+}\loadedtable
+	\begin{axis}[
+	xlabel=X, % label x axis
+	ylabel=Y, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=-10, xmax=20, % set the min and max values of the x-axis
+	ymin=0, ymax=30, % set the min and max values of the y-axis
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+  \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+	\node[draw,align=left] at (90,250) {$R^2=0.0120$};
+	\end{axis}
+	\end{tikzpicture}
+	\begin{tikzpicture}[scale=0.50]
+	\pgfplotstableread{
+x y
+19.8483788	-6.717740716
+15.39489076	6.622002912
+6.398972003	5.627885549
+0.105633723	7.511874318
+8.081881666	9.677478177
+15.63739273	1.062385059
+15.52870778	-0.254325249
+21.76533014	-2.027431896
+14.33253265	3.423238792
+5.657081327	11.59519525
+4.598100403	12.70410961
+6.685770361	14.32364803
+7.350400658	-8.533910297
+6.221861191	10.41146419
+17.49574215	3.16459267
+12.62507006	7.295151226
+2.810542433	15.91855788
+3.229024589	10.63899652
+6.10144732	6.145154631
+13.7035874	-1.862815655
+12.27725557	4.904867281
+13.51890808	5.510945165
+11.02656014	-1.274154576
+11.16841181	6.206656279
+11.02539	3.157076408
+7.260951629	3.658534536
+6.20554616	14.33837044
+13.28854303	0.756584324
+5.30860127	12.19706926
+4.750118574	8.654050807
+4.676929806	13.10309286
+9.911009467	1.835224605
+-0.070029339	13.94162243
+2.391235709	7.329086589
+10.99733862	2.089873011
+9.194389069	7.020230263
+9.405567246	-0.209866901
+13.52919634	3.245801132
+11.79917529	-8.023338902
+6.900970358	6.743192582
+13.69627659	-2.3890648
+4.681304036	10.47441571
+-0.924803271	11.9055714
+6.222039575	7.109547131
+14.51626836	4.679945425
+2.607094012	7.557771722
+9.707868422	8.155291764
+12.26986339	6.930859492
+7.395979799	5.370048426
+2.683736281	10.68452996
+}\loadedtable
+	\begin{axis}[
+	xlabel=X, % label x axis
+	ylabel=Y, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=-5, xmax=20, % set the min and max values of the x-axis
+	ymin=-10, ymax=25, % set the min and max values of the y-axis
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+   \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+	\node[draw,align=left] at (70,50) {$R^2=0.4481$};
+	\end{axis}
+	\end{tikzpicture}
+	\begin{tikzpicture}[scale=0.50]
+	\pgfplotstableread{
+x y
+-8.801482527	103.6645672
+8.918182283	90.85906857
+-2.851544689	0.43563478
+8.183475498	72.95727345
+-2.963319657	-7.042361914
+7.253876762	58.77614891
+-1.198119822	-20.49213527
+10.02990574	103.8779795
+-6.066306821	32.06793767
+6.417988024	45.7098695
+1.689843828	-28.39383422
+21.15478886	386.2847607
+3.675204109	38.29771237
+1.173598374	18.6509018
+-5.075539008	1.577935738
+3.38281706	-11.01733651
+-0.527382859	13.027818
+-18.7617464	359.650695
+4.14522035	14.27187767
+4.869722417	7.418024973
+4.025426399	2.256299941
+4.139877362	4.482648804
+-13.67137828	145.6524458
+3.951271108	-44.52682651
+5.006921818	-3.649331858
+0.085483028	8.451487117
+1.338022251	17.51021102
+-1.810863853	32.39433635
+8.672655799	107.2987319
+-13.23292967	197.9336013
+1.592326769	19.18134035
+-5.20123561	41.44575716
+13.97916903	240.8480354
+9.559527696	93.53322842
+-10.31671073	106.0835963
+-0.952297634	-19.88999946
+-1.62195978	-43.64559643
+3.191375369	4.729038433
+-2.854933242	13.54392875
+-1.269996563	5.220567302
+11.98756804	153.1965863
+3.28906645	9.177892579
+1.394033971	-26.00290702
+16.68058945	279.3858077
+10.42382112	111.4604488
+-3.478434934	23.74917201
+7.101806839	88.15783644
+-10.61834387	128.0666043
+-2.06090852	9.904366441
+-17.93936575	309.2827868
+}\loadedtable
+	\begin{axis}[
+	xlabel=X, % label x axis
+	ylabel=Y, % label y axis
+	axis lines=left, %set the position of the axes
+	xmin=-25, xmax=25, % set the min and max values of the x-axis
+	ymin=-100, ymax=400, % set the min and max values of the y-axis
+	clip=false
+	]
+
+	\addplot [only marks] table {\loadedtable};
+  \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+	\node[draw,align=left] at (250,350) {$R^2=0.0001$};
+	\end{axis}
+	\end{tikzpicture}
+	\label{fig:fig-04}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{$R^2$---final considerations}
+A high $R^2$ is not the final measure of a model's worth, nor the ``be-all and end-all'' of regression.\bigskip
+
+Predict vote in this election with vote in past election, or GDP at time $t$ with GDP at time $t-1$.\bigskip
+
+$R^2$ depends on the variation in $Y$ found in the sample $\Rightarrow$ $R^2$ from \underline{different samples} can't be compared with each other.
+
+\end{frame}
+
+
+
+
+
+\section{Multiple regression}
+
+\subsection{Theoretical}
+\begin{frame}[fragile]{From line to plane}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[x=1.2cm,y=1.2cm,z=0.72cm,>=stealth, scale=0.9]
+% The axes
+\draw[->] (xyz cs:x=-0.5) -- (xyz cs:x=4.5) node[above] {$X_1$};
+\draw[->] (xyz cs:y=-0.5) -- (xyz cs:y=4.5) node[right] {$Y$};
+\draw[->] (xyz cs:z=-0.5) -- (xyz cs:z=4.5) node[above] {$X_2$};
+% The thick ticks
+\foreach \coo in {2,4}
+{
+  \draw[thick] (\coo,-2pt) -- (\coo,2pt) node[below=6pt] {\coo};
+  \draw[thick] (-2pt,\coo) -- (2pt,\coo) node[left=6pt] {\coo};
+  \draw[thick] (xyz cs:y=-0.1pt,z=\coo) -- (xyz cs:y=0.1pt,z=\coo) node[left=1pt] {\coo};
+}
+
+% The origin
+\node[align=center] at (1,-1) (ori) {(0,0,0)\\\text{origin}};
+\draw[->,help lines,shorten >=3pt] (ori) .. controls (0.75,-0.5) and (0.5,-0.25) .. (0,0,0);
+
+% Draw the plane
+\path[fill=gray, dotted, thick, draw=fore, fill opacity=0.4] (0,1,0)--(2.5,2,0)--(2.5,3,2.5)--(0,2,2.5)--(0,1,0);
+\draw[->, >=stealth] (1,1.39,0) -- (2,1.39,0);
+\draw[->, >=stealth] (2,1.39,0) -- (2,1.79,0) node [midway, right] {\tiny{$b_1$}};
+\draw[->, >=stealth] (0,1.39,1) -- (0,1.39,2);
+\draw[->, >=stealth] (0,1.39,2) -- (0,1.79,2) node [midway, right] {\tiny{$b_2$}};
+\draw[decorate,decoration={brace}] (-0.05,0,0) -- node[left] {\tiny{$a$}} (-0.05,1,0);
+
+% Draw one point as an example
+\node[circle, fill=fore, scale=0.75] at (1,3.25,1) {};
+\node[fill=none, scale=0.8] at (1.4,3.45,1) {\tiny{$(X_{1i},X_{2i},Y_i)$}};
+\draw[->, dashed, thick, >=stealth] (1,0,1) -- (1,3.15,1);
+\draw[dotted] (0,0,1) -- (1,0,1);
+\draw[dotted] (1,0,0) -- (1,0,1);
+\node[circle, fill=title!40, draw=red!40, scale=0.75] at (1,1.99,1) {};
+\node[fill=none, scale=0.8] at (1.4,2.19,1) {\tiny{$(X_{1i},X_{2i},\hat{Y_i})$}};
+\end{tikzpicture}
+\caption*{Two predictors (adapted from \citeNP{fox_applied_2008})}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Coefficients in multiple regression}
+
+\begin{equation}
+Y = \smallunderbrace{a}_{\text{\tiny{intercept}}} + \smallunderbrace{b_1}_{\text{\tiny{slope}}}X_1 + \smallunderbrace{b_2}_{\text{\tiny{slope}}}X_2 + \smallunderbrace{e}_{\text{\tiny{residual}}}
+\end{equation}
+
+They are now called \textit{partial regression coefficients}. \textcolor{title}{Interpretation:} the effect of a particular variable, \textit{while holding the other variables in the model constant}.\bigskip
+
+In our example, $b_1$ is the effect of $X_1$ on $Y$, after holding $X_2$ constant.\bigskip
+
+Substantively, the interpretation of $a$ and the $b$s is the same as for simple regression.
+
+\end{frame}
+
+
+
+\begin{frame}{Formulas for coefficients}
+Much more complex than for simple regression.\bigskip
+
+I denote $(x_{1} - \bar{x_1})$ as $x_{1}^*$, $(x_{2} - \bar{x_2})$ as $x_{2}^*$, and $(y - \bar{y})$ as $y^*$.\bigskip
+
+\begin{align}
+b_1 =& \frac{\sum_{i=1}^n x_1^*y^*\sum_{i=1}^nx_2^{*2} - \sum_{i=1}^nx_2^*y^*\sum_{i=1}^nx_1^*x_2^*}{\sum_{i=1}^nx_1^{*2}\sum_{i=1}^nx_2^{*2} - (\sum_{i=1}^nx_1^*x_2^*)^2} \nonumber \\
+b_2 =& \frac{\sum_{i=1}^n x_2^*y^*\sum_{i=1}^nx_1^{*2} - \sum_{i=1}^nx_1^*y^*\sum_{i=1}^nx_1^*x_2^*}{\sum_{i=1}^nx_1^{*2}\sum_{i=1}^nx_2^{*2} - (\sum_{i=1}^nx_1^*x_2^*)^2} \\
+a =& \bar{y} - b_1\bar{x_1} - b_2\bar{x_2} \nonumber
+\end{align}
+
+\end{frame}
+
+
+
+\begin{frame}{Model fit---residual standard error}
+
+Computed in the same way as for simple regression.\bigskip
+
+\begin{equation}
+\sigma_e = \sqrt{\frac{\sum_{i=1}^ne_i^2}{\smallunderbrace{n}_{\text{\tiny{sample size}}}-\smallunderbrace{k}_{\text{\tiny{\# predictors}}}-1}}
+\end{equation}
+
+Of course, now $k>1$ but the interpretation is identical as before: a sort of ``average'' residual.
+
+\end{frame}
+
+
+
+\begin{frame}{Model fit---$R^2$}
+
+The formula is now more complex.\bigskip
+
+The interpretation is the same: the share of the variance in $Y$ which is explained by the predictors $X_1$, $X_2$, $\dots$, considered together.\bigskip
+
+With every $X$ added to the model, $R^2$ increases, though. That is not very desirable.
+
+\end{frame}
+
+
+
+\begin{frame}{Model fit---adjusted $R^2$}
+
+Applies a correction to the $R^2$ based on the number of variables ($k$) in the model. There are multiple types of adjusted $R^2$ proposed. $\mathcal{R}$ uses what is called the ``Wherry Formula $-1$''.\bigskip
+
+\begin{equation}
+\tilde{R}^2 = 1 - \frac{(1-R^2)(n-1)}{n-k-1}
+\end{equation}
+
+As before, $n$ is the sample size.
+
+\end{frame}
+
+
+
+\subsection{Practical}
+\begin{frame}[fragile]{California 1992}
+A plausible predictor might be ethnicity (FDR in the 1930s, LBJ in the 1960s).\bigskip
+
+<<ch-3, results='asis'>>=
+model2 <- lm(democrat ~ college + black,
+             data = df_cal,
+             na.action = na.omit)
+
+texreg(list(model1, model2), single.row = FALSE,
+       custom.model.names = c("Simple", "Multiple"),
+       custom.coef.names = c("(Intercept)", "% college educated",
+                             "% African-Americans"),
+       digits=3, caption = "Comparison of simple and multiple regression",
+       dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE,
+       fontsize = "scriptsize",
+       custom.note = ("\\parbox{.6\\linewidth}{\\vspace{2pt}%stars. Standard errors in brackets.\\\\
+       DV (outcome) is percent vote for Democrats in county.}"))
+@
+
+\end{frame}
+
+
+
+% FRAME
+\begin{frame}
+\begin{center}
+    \Huge Thank \textcolor{title}{you} for the kind attention!
+\end{center}
+\end{frame}
+ 
+% % REFERENCES %
+
+\begin{frame}[plain, allowframebreaks]
+\renewcommand{\section}[2]{}
+\bibliographystyle{apacite}
+\bibliography{Bibliography.bib}
+\end{frame}
+
+\end{document}

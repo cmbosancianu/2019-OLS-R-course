@@ -1,0 +1,243 @@
+---
+title: "Linear Regression: Day 2"
+author:
+  name: "Constantin Manuel Bosancianu"
+  orcid: 0000-0001-7950-9798
+  email: bosancianu@icloud.com
+date: "February 26, 2019"
+bibliography: "../03-slides/Bibliography.bib"
+execute:
+  eval: true
+  echo: true
+  warning: false
+  error: false
+format:
+  html:
+    toc: true
+    code-fold: true
+    toc-location: left
+    theme: minty
+    number-sections: true
+    reference-location: margin
+    embed-resources: true
+---
+
+# Introduction
+
+We can continue with the SAT score data from yesterday. We will gradually add a bit more complexity to our model today, under the form of additional predictors.
+
+```{r load-packages}
+library(pacman)
+p_load(readstata13, tidyverse, psych, corrgram, car, knitr,
+       texreg, kableExtra, magrittr, ggthemes)
+
+# Avoid scientific notation for coefficients
+options(scipen = 8)
+```
+
+# Reading data
+
+We read in the data using the same function from the `readstata13` package as yesterday.
+
+```{r read-data}
+df_sat <- read.dta13(file = "../02-data/01-Education-states.dta",
+                     convert.factors = TRUE)
+```
+
+# Simple linear regression
+
+We start by running the model we finished yesterday's class with: $CSAT \leftarrow expenses$.
+
+## Initial regression
+
+```{r ols-1}
+model1 <- lm(csat ~ expense,
+             data = df_sat,
+             na.action = na.omit)
+
+summary(model1)
+```
+
+Of course, when interpreting the intercept, it makes no sense to talk about the predicted average SAT score for a state with 0 USD spent on education. We can solve this by rescaling the predictor.
+
+```{r center-variable-1}
+df_sat %<>%
+    mutate(exp_scale = expense - mean(expense, na.rm = TRUE))
+```
+
+```{r ols-2}
+rm(model1)
+
+model2 <- lm(csat ~ exp_scale,
+             data = df_sat,
+             na.action = na.omit)
+summary(model2)
+```
+
+If you're going to do this centering again and again, it makes sense to leverage `R`'s power and create a custom function for this.^[Just remember, this is a function that is defined only for this `R` session. You will need to define it again for other projects.]
+
+```{r centering-function}
+fun_center <- function(x) {
+    x - mean(x, na.rm = TRUE)
+}
+```
+
+```{r center-variable-2}
+df_sat %<>%
+    mutate(exp_scale = fun_center(expense))
+```
+
+Re-run the model to see that nothing has changed.
+
+```{r ols-3}
+model2 <- lm(csat ~ exp_scale,
+             data = df_sat,
+             na.action = na.omit)
+
+summary(model2)
+```
+
+Now, at least, the intercept makes sense. How would you interpret it with this version of the predictor?
+
+# Model fit
+
+Initial questions:
+
+1. What is the residual standard error in the model?
+2. How do you interpret the R-squared value? (`R` calls this the *multiple R-squared*)
+
+These are important summary statistics, and although sometimes they get abused (particularly the R-squared), they tell us important things. At the same time, they cannot replace a thorough look at how the model does in **PREDICTING** the data: where does it predict well, and where does it do poorly?
+
+For that, all you need to ask for is the predicted (fitted) values, which the function already computes and stores in the model object.
+
+```{r fitted-values}
+model2$fitted.values
+```
+
+In their raw form they don't tell us very much, so we might want to actually plot them against the actual values for `csat`. We can plot these using the same function as yesterday, from the `ggplot2` package.
+
+```{r plot-fitted-actual}
+#| fig-height: 5
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(NULL, aes(x = df_sat$csat,
+                 y = model2$fitted.values)) +
+  geom_point(size = 2) +
+  xlab("Actual value SAT") +
+  ylab("Predicted value SAT") +
+  theme_clean() +
+  geom_abline(intercept = 0,
+              slope = 1,
+              color = "red")
+```
+
+You can see that at low levels of SAT scores we are overpredicting, and at high levels of SAT scores, we are underpredicting. The differences are quite substantial: we are frequently talking about 50-100 SAT points.
+
+# Multiple linear regression
+
+What if we're actually dealing with a self-selection effect? A number of insights lead us to believe that this is the case:
+
+1. As one of the participants has suggested, the SAT has a competitor, the ACT. Some students might opt for the SAT because they have a particular set of colleges they would like to attend, and they only apply to them.
+2. Some states offer the SAT to all students free of charge (the recent list includes District of Columbia, Idaho, Maine). Others require it of their students (the recent list includes Colorado, Illinois, New Hampshire).
+3. Some states might simply be better at incentivizing students to take the SAT, and at offering them assistance for the test, or publicizing the benefits of taking the SAT.
+
+Whatever the reason, if a larger group takes the SAT, we would expect that there is a greater diversity in test scorers, which means lower average scores. In states where students are allowed to self-select into taking the test, we expect better students to opt for it, and therefore we expect to see higher average scores. In this sense, it's not that some states are worse in educational provision than others - it's just a different composition of students taking the SAT.
+
+```{r correlogram-1}
+#| fig-height: 6
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+corrgram(df_sat[, c("expense", "percent")],
+         lower.panel = panel.pts,
+         upper.panel = panel.cor)
+```
+
+We see there is a fairly high correlation between the two indicators.
+
+Perform the same centering for `percent` as well, so as not to interpret the intercept as the SAT score in a state where 0% of students take the SAT.
+
+```{r center-variable-3}
+df_sat %<>%
+    mutate(per_scale = fun_center(percent))
+```
+
+```{r ols-4}
+model3 <- lm(csat ~ exp_scale + per_scale,
+             data = df_sat,
+             na.action = na.omit)
+
+summary(model3)
+```
+
+**Questions**:
+1. How do you interpret the effect of expenses on education?
+2. How do you interpret the effect of percentage of high school students who take the SAT?
+3. How do you interpret the R-squared value?
+4. How does Model 3 do compared to Model 2, in terms of residual standard error?
+5. How does Model 3 compare to Model 2 in terms of R-squared value and adjusted R-squared value?
+
+# Presenting regression results
+
+Copying results by hand, at 11:30 PM the day before the submission deadline for the conference, jacked up on Red Bull, chocolate and peanuts, is a perfect recipe for mistakes.
+
+There is really no need to do this, as R has not one, but a few packages to extract the needed quantities from a regression output, and export them in HTML or LaTeX format, for use in your papers. As far as I know, the following packages are actively maintained: `apsrtable`, `stargazer`, `huxtable` and `texreg`. I use the latter one extensively, and will demo it here.
+
+Before running it, please make in the working folder for today, a subfolder called "05-output". This will be used to export some regression comparison tables.
+
+The package requires that the same variable has the same name across the models. If you changed a variable name between, say, Model 3 and Model 4, `textreg` will think it's a different variable, and add it to a different row than the one you want.
+
+```{r export-results-1}
+htmlreg(list(model2, model3), # The model objects
+        single.row = FALSE, # Should SEs be next to coefficients (TRUE),
+                            # or below them? (FALSE)
+        custom.model.names = c("Model 1", "Model 2"),
+        custom.coef.names = c("(Intercept)", "Spending (centered)",
+                              "% taking SAT (centered)"),
+        digits = 3, # Decimal places
+        caption = "Two comparison regression models", # Table caption
+        file = "../05-output/Table-1.html") # Output file (requires
+                                           # "Output" subfolder in main folder)
+```
+
+For LaTeX users.
+
+```{r export-results-2}
+texreg(list(model2, model3), # The model objects
+       single.row = FALSE,
+       custom.model.names = c("Model 1", "Model 2"),
+       custom.coef.names = c("(Intercept)", "Spending (centered)",
+                             "% taking SAT (centered)"),
+       digits = 3, # Decimal places
+       caption = "Two comparison regression models", # Table caption
+       dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE,
+       # The "dcolumn" and "booktabs" packages are used - be sure to
+       # add them to the preamble of the document, otherwise the file
+       # will not compile
+       file = "../05-output/Table-1.tex") # Output file (requires
+                                         # "Output" subfolder in main folder)
+```
+
+Other packages have a slightly different syntax, but they are fairly easy to understand once you spend 15-20 minutes with the package manual.
+
+As a matter of personal taste, I like regression tables where the main predictors of interest are placed at the top of the table. That way I don't have to scan a long regression table for the precise coefficient discussed in a paragraph. It is also helpful to separate with a line these main predictors from the statistical controls that are not really the main focus of the paper. You can easily do the first procedure, re-ordering, with the `reorder.coef = ` argument to the `texreg()` or `htmlreg()` functions.
+
+Save the data set, as we will need it tomorrow for one last demo.
+
+```{r save-copy-data}
+write.csv(df_sat,
+          file = "../02-data/02-Education-states-followup.csv",
+          row.names = FALSE)
+```
+
+# Package versions
+
+Package versions used in this script.
+
+```{r package-versions}
+sessionInfo()
+```
+

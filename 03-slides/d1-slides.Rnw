@@ -1,0 +1,929 @@
+\documentclass[12pt,english,pdf,dvipsnames,aspectratio=169]{beamer}
+\usepackage{fontspec}
+\setsansfont[Mapping=tex-text]{Fira Sans}
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\usepackage[normalem]{ulem}
+\usepackage[T1]{fontenc}
+\usepackage{dcolumn}
+\usepackage{booktabs}
+\usepackage{setspace}
+\makeatletter
+\usetheme{metropolis}
+\usepackage{mathpazo}
+\usepackage{xcolor}
+\definecolor{title}{RGB}{255,98,0}
+\usepackage{tikz, tikz-cd}
+\usetikzlibrary{shapes,backgrounds,trees,decorations.pathreplacing}
+\usepackage[labelformat=empty]{caption}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15}
+\usepgfplotslibrary{fillbetween}
+\usepackage{pgfplotstable}
+\usepackage[sectionbib]{apacite}
+\renewcommand{\bibliographytypesize}{\footnotesize}
+\usepackage{amsmath}
+\usepackage{polyglossia}
+\setdefaultlanguage[variant=american]{english}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{wrapfig}
+\usepackage{hyperref}
+\hypersetup{pdfauthor={Constantin Manuel Bosancianu},
+pdftitle={Linear regression with R/Stata},
+pdfsubject={Day 1: Recap and basics},
+pdfkeywords={Bamberg, ECPR, 2019, day 1, WSMT}}
+% Defines a checkmark
+\def\checkmark{\tikz\fill[scale=0.4, color=title](0,.35) -- (.25,0) -- (1,.7) -- (.25,.15) -- cycle;}
+\setbeamertemplate{itemize items}{\checkmark}
+
+\title{\textsc{Linear Regression with R/Stata}}
+\subtitle{Day 1: Recap and Basics}
+\author{Constantin Manuel Bosancianu}
+\institute{Wissenschaftszentrum Berlin \\ \textit{Institutions and Political Inequality} \\\href{mailto:bosancianu@icloud.com}{bosancianu@icloud.com}}
+\date{February 25, 2019}
+\begin{document}
+\maketitle
+% PREAMBLE %
+
+<<options, eval=TRUE, echo=FALSE, message=FALSE>>=
+library(pacman)
+p_load(tidyverse, knitr, foreign, magrittr, texreg,
+       ggthemes)
+
+opts_chunk$set(message = FALSE,
+               warning = FALSE,
+               comment = NA,
+               echo = FALSE,
+               eval = TRUE)
+@
+
+\section{Preamble}
+
+\begin{frame}{Basic setup for course}
+
+Lecture (slide-based) + lab (code-based) \textcolor{title}{+ consultations}.\bigskip
+
+Pace: fairly slow, but we can customize to your needs.\bigskip
+
+Difficulty: light, but we can adapt as we go here as well.\bigskip
+
+Credit system: 2 = attendance and readings; 2+1 = attendance, readings, and short class assignment; 2+2 = all of the above, plus final take-home assignment.
+
+\bigskip
+
+\end{frame}
+
+
+\begin{frame}{Outline}
+
+\begin{itemize}
+\item Basic notation in statistics;
+\item Basic concepts: mean, variance, covariance, correlation, $t$-test;
+\item (it might extend slightly into the laboratory session): Introduction to simple linear regression: fitting a line to data.
+\end{itemize}
+\bigskip
+
+The first two I'll keep short, but if you feel we went too fast through them, let's talk about this more during the consultation sessions.
+\end{frame}
+
+
+
+
+\section{Notation and basic concepts}
+
+\begin{frame}{Why notation}
+
+You will encounter it in a lot of quantitative literature, so it's good to get familiar with it early.\bigskip
+
+Some statistical topics you will have to learn on your own, so it's best if you get used with the symbols which many books use.\bigskip
+
+It slows you down a bit in the short term, but makes things faster in the long term.
+
+\end{frame}
+
+
+
+
+\begin{frame}{Building blocks I}
+  Capital letters refer to variables ($X$, $Y$). Small letters refer to specific observations ($x_i$ is the \textit{i}th observation on variable $X$).\bigskip
+
+  Sample size: $n$.\bigskip
+
+  Sum of elements: $\sum_{i=1}^n$ (read: ``sum of all elements from 1 to n'').\bigskip
+
+  What would $\frac{\sum_{i=1}^nx_i}{n}$ do, then?\bigskip
+
+  I denote the \underline{mean} by $\bar{x}$.
+\end{frame}
+
+
+\subsection{Variance}
+\begin{frame}{Building blocks II}
+  \underline{Variance}: a measure of how spread out observations on a variable are, from the mean of the variable. Denoted by $\sigma^2$.\bigskip
+
+  \begin{equation}
+  \centering
+  \sigma_x^2 = \frac{\sum_{i=1}^n(x_i - \bar{x})^2}{n-1}
+\end{equation}
+
+\begin{itemize}
+\item Why are the elements in the numerator squared before adding them up?\footnote{Each $x_i - \bar{x}$ is called a ``deviation''.}
+\item Why is the denominator $n-1$ instead of $n$, as for the mean?
+\end{itemize}
+
+\end{frame}
+
+
+
+
+\begin{frame}{Example}
+
+  \begin{figure}
+\centering
+\begin{tikzpicture}
+ 	%axis
+	\draw (0,0) -- coordinate (x axis mid) (10,0);
+	%ticks
+  \foreach \x in {0,...,10}
+  	\draw (\x,2pt) -- (\x,-3pt)
+			node[anchor=north] {\x};
+	\foreach \x in {0.5,...,9.5}
+  	\draw (\x,1pt) -- (\x,-1pt);
+	%labels
+	\node[below=0.8cm] at (x axis mid) {Scores for A};
+% Specific grades
+\node [circle, title, fill, opacity=0.5] at (7,0) {};
+\node [circle, title, fill, opacity=0.5] at (10,0) {};
+\node [circle, title, fill, opacity=0.5] at (9.5,0) {};
+\node [circle, title, fill, opacity=0.5] at (8.5,0) {};
+%\node [circle, violet, fill] at (8.75,0) {};
+\draw[thick,->,>=stealth] (8.75,-0.75)--(8.75,-0.1);
+\draw[fill=none] (8.75,-0.95) node {\scriptsize{$\bar{x} = 8.75$}};
+\draw (8.75, 0.2) -- (8.75, 0.7);
+\draw (7, 0.2) -- (7, 0.7);
+\draw[thick, dotted, <->,>=stealth] (7,0.6)--(8.75,0.6) node [midway, above] {\scriptsize{$x_i - \bar{x} = -1.75$}};
+\end{tikzpicture}
+\begin{tikzpicture}
+ 	%axis
+	\draw (0,0) -- coordinate (x axis mid) (10,0);
+	%ticks
+  \foreach \x in {0,...,10}
+  	\draw (\x,2pt) -- (\x,-3pt)
+			node[anchor=north] {\x};
+	\foreach \x in {0.5,...,9.5}
+  	\draw (\x,1pt) -- (\x,-1pt);
+	%labels
+	\node[below=0.8cm] at (x axis mid) {Scores for B};
+% Specific grades
+\node [circle, title, fill, opacity=0.5] at (5,0) {};
+\node [circle, title, fill, opacity=0.5] at (8,0) {};
+\node [circle, title, fill, opacity=0.5] at (9,0) {};
+\node [circle, title, fill, opacity=0.5] at (4,0) {};
+%\node [circle, violet, fill] at (6.5,0) {}; % Could be confused for a 5th score
+\draw[thick,->,>=stealth] (6.5,-0.75)--(6.5,-0.1);
+\draw[fill=none] (6.75,-0.95) node {\scriptsize{$\bar{x} = 6.5$}};
+\draw (6.5, 0.2) -- (6.5, 0.7);
+\draw (9, 0.2) -- (9, 0.7);
+\draw[thick, dotted, <->,>=stealth] (9,0.6)--(6.5,0.6) node [midway, above] {\scriptsize{$x_i - \bar{x} = 2.5$}};
+\end{tikzpicture}
+\caption*{Scores for 2 countries, A and B, on 4 dimensions of democratization.}
+\label{fig:fig-01}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Example}
+
+\begin{equation}
+\centering
+\footnotesize
+\sigma_A^2 = \frac{(-1.75)^2 + (-0.25)^2 + (0.75)^2 + (1.25)^2}{4-1} = \frac{5.25}{3} = 1.75
+\end{equation}
+
+\begin{equation}
+\centering
+\footnotesize
+\sigma_B^2 = \frac{(-2.5)^2 + (-1.5)^2 + (1.5)^2 + (2.5)^2}{4-1} = \frac{17}{3} = 5.667
+\end{equation}\bigskip
+
+From variance, a quick derivate measure is the \underline{standard deviation}: $\sigma_x = \sqrt{\sigma_x^2}$.
+
+\end{frame}
+
+
+\subsection{Covariance}
+\begin{frame}{Building blocks III}
+  \underline{Covariance}: measure of association between two variables. It describes how they vary together---when observation $j$ has a high value on $X$, how is its value on $Y$?\bigskip
+
+\begin{equation}
+cov(X, Y) = \frac{\sum\limits_{i=1}^n(x_i - \bar{x})(y_i - \bar{y})}{n-1}
+\end{equation}
+
+\end{frame}
+
+
+
+
+\begin{frame}{Example}
+
+<<ch-1>>=
+df_tab <- read.table("../05-output/Tab01.dat",
+                     header = TRUE)
+@
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+% For the regression graph below
+\pgfmathsetseed{1139} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={2+2*\pgfplotstablerow}},
+ 	create on use/y/.style={create col/expr={(0.6*\thisrow{x}+10)+15*rand}}
+}
+% create a new table with 30 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{30}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=70, % set the min and max values of the x-axis
+ymin=0, ymax=60, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\draw [dotted, title, very thick] (310,0) -- (310,600);
+\node[draw=none,fill=none] (A) at (330,20) {$\textcolor{title}{\bar{x}}$};
+\draw [dotted, title, very thick] (0,296.76685) -- (700,296.76685);
+\node[draw=none,fill=none] (B) at (20,320) {$\textcolor{title}{\bar{y}}$};
+\end{axis}
+\end{tikzpicture}
+\caption*{Relationship between two variables (I). Covariance is \Sexpr{round(cov(df_tab$x, df_tab$y), digits = 3)}.}
+\label{fig:fig-02}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Example}
+
+<<ch-2>>=
+df_tab <- read.table("../05-output/Tab04.dat",
+                     header = TRUE)
+@
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+% For the regression graph below
+\pgfmathsetseed{1142} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+ 	create on use/x/.style={create col/expr={2+2*\pgfplotstablerow}},
+ 	create on use/y/.style={create col/expr={(-0.75*\thisrow{x}+60)+12*rand}}
+}
+% create a new table with 30 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{30}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=70, % set the min and max values of the x-axis
+ymin=0, ymax=70, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\draw [dotted, title, very thick] (310,0) -- (310,700);
+\node[draw=none,fill=none] (A) at (330,20) {$\textcolor{title}{\bar{x}}$};
+\draw [dotted, title, very thick] (0,372.78172) -- (700,372.78172);
+\node[draw=none,fill=none] (B) at (20,320) {$\textcolor{title}{\bar{y}}$};
+\end{axis}
+\end{tikzpicture}
+\caption*{Relationship between two variables (II). Covariance is \Sexpr{round(cov(df_tab$x, df_tab$y), digits = 3)}.}
+\label{fig:fig-03}
+\end{figure}
+
+\end{frame}
+
+
+\begin{frame}{Example}
+
+<<ch-3>>=
+df_tab <- read.table("../05-output/Tab02.dat",
+                     header = TRUE)
+@
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+% For the regression graph below
+\pgfmathsetseed{1140} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={2+2*\pgfplotstablerow}},
+	create on use/y/.style={create col/expr={(0*\thisrow{x}+25)+25*rand}}
+}
+% create a new table with 30 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{30}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=70, % set the min and max values of the x-axis
+ymin=0, ymax=60, % set the min and max values of the y-axis
+clip=false
+]
+%\pgfplotstablesave{\loadedtable}{./Tables/Tab02.dat}
+
+\addplot [only marks] table {\loadedtable};
+\draw [dotted, title, very thick] (310,0) -- (310, 600);
+\node[draw=none,fill=none] (A) at (330,20) {$\textcolor{title}{\bar{X}}$};
+\draw [dotted, title, very thick] (0,259.035) -- (700,259.035);
+\node[draw=none,fill=none] (B) at (20,280) {$\textcolor{title}{\bar{Y}}$};
+\end{axis}
+\end{tikzpicture}
+\caption*{Relationship between two variables (III). Covariance is \Sexpr{round(cov(df_tab$x, df_tab$y), digits = 3)}.}
+\label{fig:fig-04}
+\end{figure}
+
+\end{frame}
+
+
+\subsection{Correlation}
+\begin{frame}{Building blocks IV}
+Covariance is an imperfect measure, though, because it's sensitive to the scale of measurement.\bigskip
+
+IQ and income: from 0 to 60,000 EUR, or from 0 to 60 (in 1,000s of EUR).\bigskip
+
+\underline{Correlation} tackles this problem by standardizing covariance:
+
+\begin{equation}
+r_{XY} = \frac{cov(X,Y)}{\sigma_x\sigma_y} = \frac{\frac{\sum\limits_{i=1}^n(x_i - \bar{x})(y_i - \bar{y})}{n-1}}{\sigma_x\sigma_y}
+\end{equation}
+
+\end{frame}
+
+
+
+\begin{frame}{Building blocks V}
+Characteristics of correlation:\bigskip
+
+\begin{itemize}
+\item always ranges between -1 and 1;
+\item 0 indicates lack of any association between $X$ and $Y$;
+\item indicates strength of relationship, as well as direction (negative vs. positive);
+\end{itemize}\bigskip
+
+Limitations:\bigskip
+
+\begin{itemize}
+\item requires continuous variables (Pearson's $r$);
+\item can only capture linear relationships.
+\end{itemize}
+
+\end{frame}
+
+
+
+\begin{frame}{Example}
+
+<<ch-4>>=
+df_tab <- read.table("../05-output/Tab05.dat",
+                     header = TRUE)
+@
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+% For the regression graph below
+\pgfmathsetseed{1143} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow-20}},
+	create on use/y/.style={create col/expr={(\thisrow{x}*\thisrow{x}-20)+30*rand}}
+}
+% create a new table with 40 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{40}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=-25, xmax=25, % set the min and max values of the x-axis
+ymin=-50, ymax=500, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\end{axis}
+\end{tikzpicture}
+\caption*{Curvilinear relationship. Pearson's $r$ is \Sexpr{round(cor(df_tab$x, df_tab$y), digits = 3)}.}
+\label{fig:fig-05}
+\end{figure}
+\end{frame}
+
+
+\subsection{Standard error}
+\begin{frame}{Building blocks VI}
+Just as a variable $X$ can have a standard deviation, so can the mean of $X$.\bigskip
+
+Such a quantity would tell us how spread out $\bar{x}$ would be, if we took repeated samples of size $n$ from the population, and computed $\bar{x}$ again and again.\bigskip
+
+This quantity is called a \underline{standard error} (SE).\bigskip
+
+\begin{equation}
+SE_{\bar{x}} = \frac{\sigma_{x}}{\sqrt{n}}
+\end{equation}
+
+\end{frame}
+
+
+\subsection{T-test}
+\begin{frame}{Building blocks VII}
+A \underline{$t$-test} is a way of comparing two means, to check whether they are statistically significantly different from each other.
+
+\begin{itemize}
+\item one-sample $t$-test: a mean of a sample is compared with the population mean;
+\item two-sample $t$-test: means of two samples are compared to each other;
+\end{itemize}\bigskip
+
+Take the first type (the sample is $x$ and the population mean is $\mu$):
+
+\begin{equation}
+\centering
+t = \frac{\bar{x} - \mu}{SE_{\bar{x}}} = \frac{\bar{x} - \mu}{\sqrt{\frac{\sigma_{x}^2}{n}}}
+\end{equation}
+
+\end{frame}
+
+
+\begin{frame}{Building blocks VIII}
+This $t$ value has a well-behaved $t$ distribution (\url{https://rpsychologist.com/d3/tdist/}), with $n - 1$ degrees of freedom (\textit{df}).\bigskip
+
+If the $t$ value surpasses the critical value for these degrees of freedom, at a pre-specified level of confidence, then the test is statistically significant.\bigskip
+
+The mean in the sample is statistically significantly different than the population mean.
+\end{frame}
+
+
+
+
+\section{Simple linear regression: intro}
+
+\begin{frame}{Simple linear regression: benefits}
+Like correlation or covariance, it describes the relationship between two variables. It goes far beyond this, though:
+
+\begin{itemize}
+  \item gives us very precise details regarding how the two variables are associated;
+  \item allows us to quantify uncertainty about this association as well;
+  \item allows us to make predictions about $Y$ for any level of $X$ we might want;
+  \item produces a measure of how well we're describing $Y$ with $X$.
+\end{itemize}
+
+\end{frame}
+
+
+\subsection{OLS logic}
+\begin{frame}{Example: California counties in 1992}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+\pgfplotstableread{../05-output/Tab06.dat}\loadedtable
+\begin{axis}[
+xlabel=\% college degree, % label x axis
+ylabel=\% vote for Democrat, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=50, % set the min and max values of the x-axis
+ymin=20, ymax=80, % set the min and max values of the y-axis
+ xticklabel={\pgfmathparse{\tick}\pgfmathprintnumber{\pgfmathresult}\%},
+ yticklabel={\pgfmathparse{\tick}\pgfmathprintnumber{\pgfmathresult}\%},
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\end{axis}
+\end{tikzpicture}
+\caption*{Relationship between education and vote choice.}
+\label{fig:fig-06}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Example: California counties in 1992}
+A line would appear to fit the relationship between the two variables.\bigskip
+
+We need two pieces of information to uniquely identify the line:
+
+\begin{itemize}
+\item the point at which it intersects $Y$;
+\item the slope of the line.
+\end{itemize}
+
+\begin{equation}
+Y = a + bX
+\end{equation}
+
+\end{frame}
+
+
+
+\begin{frame}{The role of residuals}
+ The relationship isn't perfect, though, so we need one more element: the \underline{error term}.
+
+ \begin{equation}
+ Y = a + bX + \textcolor{title}{e}
+ \end{equation}
+
+ \begin{figure}
+ \centering
+ \begin{tikzpicture}[scale=0.4]
+ % For the regression graph below
+ \pgfmathsetseed{1139} % set the random seed
+ \pgfplotstableset{ % Define the equations for x and y
+ 	create on use/x/.style={create col/expr={2+2*\pgfplotstablerow}},
+ 	create on use/y/.style={create col/expr={(0.6*\thisrow{x}+10)+15*rand}}
+ }
+ % create a new table with 30 rows and columns x and y:
+ \pgfplotstablenew[columns={x,y}]{30}\loadedtable
+ \begin{axis}[
+ xlabel=X, % label x axis
+ ylabel=Y, % label y axis
+ axis lines=left, %set the position of the axes
+ xmin=0, xmax=70, % set the min and max values of the x-axis
+ ymin=0, ymax=60, % set the min and max values of the y-axis
+ clip=false
+ ]
+
+ \addplot [only marks] table {\loadedtable};
+ \addplot [no markers, thick, color=title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+ \end{axis}
+ \end{tikzpicture}
+ \begin{tikzpicture}[scale=0.4]
+ % For the regression graph below
+ \pgfmathsetseed{1139} % set the random seed
+ \pgfplotstableset{ % Define the equations for x and y
+ 	create on use/x/.style={create col/expr={2+2*\pgfplotstablerow}},
+ 	create on use/y/.style={create col/expr={(0.6*\thisrow{x}+10)+10*rand}}
+ }
+ % create a new table with 30 rows and columns x and y:
+ \pgfplotstablenew[columns={x,y}]{30}\loadedtable
+ \begin{axis}[
+ xlabel=X, % label x axis
+ ylabel=Y, % label y axis
+ axis lines=left, %set the position of the axes
+ xmin=0, xmax=70, % set the min and max values of the x-axis
+ ymin=0, ymax=60, % set the min and max values of the y-axis
+ clip=false
+ ]
+
+ \addplot [only marks] table {\loadedtable};
+ \addplot [no markers, thick, color=title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+ \end{axis}
+ \end{tikzpicture}
+ \begin{tikzpicture}[scale=0.4]
+ % For the regression graph below
+ \pgfmathsetseed{1139} % set the random seed
+ \pgfplotstableset{ % Define the equations for x and y
+ 	create on use/x/.style={create col/expr={2+2*\pgfplotstablerow}},
+ 	create on use/y/.style={create col/expr={(0.6*\thisrow{x}+10)+2*rand}}
+ }
+ % create a new table with 30 rows and columns x and y:
+ \pgfplotstablenew[columns={x,y}]{30}\loadedtable
+ \begin{axis}[
+ xlabel=X, % label x axis
+ ylabel=Y, % label y axis
+ axis lines=left, %set the position of the axes
+ xmin=0, xmax=70, % set the min and max values of the x-axis
+ ymin=0, ymax=60, % set the min and max values of the y-axis
+ clip=false
+ ]
+
+ \addplot [only marks] table {\loadedtable};
+ \addplot [no markers, thick, color=title] table [y={create col/linear regression={y=y}}] {\loadedtable};
+ \end{axis}
+ \end{tikzpicture}
+ \label{fig:fig-07}
+ \end{figure}
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Residuals}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.9]
+\pgfmathsetseed{1144} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+    create on use/x/.style={create col/expr={42+2*\pgfplotstablerow}},
+    create on use/y/.style={create col/expr={(0.6*\thisrow{x}+130)+15*rand}}
+}
+% create a new table with 30 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{30}\loadedtable
+
+% Calculate the regression line
+\pgfplotstablecreatecol[linear regression]{regression}{\loadedtable}
+
+\pgfplotsset{
+    colored residuals/.style 2 args={
+        only marks,
+        scatter,
+        point meta=explicit,
+        colormap={redblue}{color=(#1) color=(#2)},
+        error bars/y dir=minus,
+        error bars/y explicit,
+        error bars/draw error bar/.code 2 args={
+            \pgfkeys{/pgf/fpu=true}
+            \pgfmathtruncatemacro\positiveresidual{\pgfplotspointmeta<0}
+            \pgfkeys{/pgf/fpu=false}
+            \ifnum\positiveresidual=0
+                \draw [#2] ##1 -- ##2;
+            \else
+                \draw [#1] ##1 -- ##2;
+            \fi
+        },
+        /pgfplots/table/.cd,
+            meta expr=(\thisrow{y}-\thisrow{regression})/abs(\thisrow{y}-\thisrow{regression}),
+            y error expr=\thisrow{y}-\thisrow{regression}
+    },
+    colored residuals/.default={Red}{NavyBlue}
+}
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=40, xmax=105, % set the min and max values of the x-axis
+ymin=140, ymax=200, % set the min and max values of the y-axis
+]
+
+\makeatletter
+\addplot [colored residuals] table {\loadedtable};
+\addplot [
+    no markers,
+    thick,
+] table [y=regression] {\loadedtable} ;
+\end{axis}
+\end{tikzpicture}
+\caption*{Residuals (blue is positive, red is negative)}
+\label{fig:fig-08}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{How to construct the line?}
+There are numerous ways of thinking about this.\bigskip
+
+One approach is to choose the line that minimizes the total size of the (absolute values of) residuals.\bigskip
+
+\begin{equation}
+\sum_{i=1}^n|e_i| = |e_1| + |e_2| + \dots + |e_n|
+\label{eq:eq-01}
+\end{equation}
+
+Why not just add up the residuals? (think back to the way variance was constructed out of deviances).
+
+\end{frame}
+
+
+\begin{frame}{How to construct the line?}
+In fact, we will be minimizing the total size of the \textit{squared} residuals (this is also called the \textit{sum of squared errors} (SSE) in some texts).\bigskip
+
+\begin{equation}
+\sum_{i=1}^ne_i^2 = e_1^2 + e_2^2 + \dots + e_n^2
+\label{eq:eq-02}
+\end{equation}
+
+This is what gives OLS its name: \textit{ordinary least squares}.
+
+\end{frame}
+
+
+\begin{frame}{Terminology}
+In covariance or correlation, we didn't make a big distinction between $X$ and $Y$.\bigskip
+
+In regression, we do:
+
+\begin{itemize}
+\item $Y$ is called: outcome, response variable, or dependent variable;
+\item $X$ is called: predictor, or independent variable.
+\end{itemize}
+
+In this understanding, there is a causal relationship between $X$ and $Y$, although regression can only offer some clues about the precise direction of causality.
+
+\end{frame}
+
+
+
+\subsection{Coefficients}
+\begin{frame}{Coefficients}
+\begin{equation}
+Y = a + bX + \textcolor{title}{e}
+\end{equation}
+
+$a$ = \underline{intercept}. The value of $Y$ when $X$ is 0.\bigskip
+
+$b$ = \underline{slope}. The \textit{change} in $Y$ when $X$ increases by 1-unit.\bigskip
+
+For the simple regression case:
+
+\begin{align}
+b =& \frac{\sum_{i=1}^n(x_i - \bar{x})(y_i - \bar{y})}{\sum_{i=1}^n(x_i - \bar{x})^2} \\\nonumber
+a =& \bar{y} - b\bar{x}
+\end{align}
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{California counties in 1992}
+
+\begin{figure}
+	\centering
+	\begin{tikzpicture}[scale=0.9]
+	\pgfplotstableread{
+x y
+28.7999992370605	63
+24	34.0999984741211
+14	34.2000007629395
+19.5	38.2000007629395
+14.3999996185303	35.2000007629395
+11.1000003814697	31.8999996185303
+31.6000003814697	50.9000015258789
+10	38.9000015258789
+20.7999992370605	32.4000015258789
+16.8999996185303	42.2000007629395
+ 9.39999961853027	30.2000007629395
+ 20	48.0999984741211
+ 9.69999980926514	43.9000015258789
+ 13.5	31.7999992370605
+ 13.3000001907349	33.7999992370605
+ 9	38.9000015258789
+ 10.6999998092651	45.4000015258789
+ 11.6999998092651	32.7000007629395
+ 22.2999992370605	52.5
+ 11.6999998092651	35.9000015258789
+ 44	58.2999992370605
+ 16.7999992370605	36.5
+ 17.7999992370605	50.2000007629395
+ 12	40.9000015258789
+ 11.1999998092651	32.2000007629395
+ 21.8999996185303	34.2000007629395
+ 21.5	47
+ 22.2999992370605	45.2999992370605
+ 22.1000003814697	34.9000015258789
+ 27.7999992370605	31.6000003814697
+ 22.7000007629395	33.7000007629395
+ 15.1000003814697	37.5999984741211
+ 14.6000003814697	38.5999984741211
+ 23	43.5999984741211
+ 14.3999996185303	42
+ 14.8999996185303	38.7000007629395
+ 25.2999992370605	37.2000007629395
+ 35	72.4000015258789
+ 13.1999998092651	41.2999992370605
+ 22.8999996185303	38.4000015258789
+ 31.2999992370605	54
+ 26.6000003814697	42.5
+ 32.5999984741211	49.2000007629395
+ 29.7000007629395	58.0999984741211
+ 13.6999998092651	31.6000003814697
+ 15.8999996185303	34.7999992370605
+ 14.1999998092651	39.9000015258789
+ 18.7000007629395	48.7000007629395
+ 24.5	52.7999992370605
+ 13	40.9000015258789
+ 15.3999996185303	30.5
+ 10.1999998092651	35.7999992370605
+ 12.8999996185303	32.5999984741211
+ 11.8000001907349	35.2000007629395
+ 14.6999998092651	38.0999984741211
+ 23	37
+ 30.2999992370605	53.2999992370605
+ 9.5	34.2000007629395
+ }\loadedtable
+
+ 	\begin{axis}[
+ 	xlabel=\% college degree, % label x axis
+ 	ylabel=\% vote for Democrats, % label y axis
+ 	axis lines=left, %set the position of the axes
+ 	xmin=0, xmax=50, % set the min and max values of the x-axis
+ 	ymin=20, ymax=80, % set the min and max values of the y-axis
+   xticklabel={\pgfmathparse{\tick}\pgfmathprintnumber{\pgfmathresult}\%},
+   yticklabel={\pgfmathparse{\tick}\pgfmathprintnumber{\pgfmathresult}\%},
+ 	clip=false
+ 	]
+
+  \addplot [only marks] table {\loadedtable};
+  \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable} node [anchor=west, xshift=3cm, yshift=1cm] {$\pgfmathprintnumber[precision=2]{\pgfplotstableregressionb} + \pgfmathprintnumber[precision=2, fixed zerofill]{\pgfplotstableregressiona} \cdot \mathrm{X}$};
+ 	\end{axis}
+ 	\end{tikzpicture}
+ 	\caption*{OLS estimates: education and vote choice (California 1992)}
+ 	\label{fig:fig-09}
+ \end{figure}
+
+ \end{frame}
+
+
+\subsection{Interpretation}
+
+\begin{frame}{Interpretation for California 1992}
+
+$a$---``baseline'' value of \% Democratic vote for 0\% college educated in the county.\bigskip
+
+26.5\% for Democrats for 0\% college educated.\bigskip
+
+$b$---increase in \% vote for Democratic candidate when \% college educated increases by 1.\bigskip
+
+0.77 percentage points increase in \% Democratic vote for 1 point increase in \% college educated.
+
+\end{frame}
+
+
+ \begin{frame}[fragile]{Interpretation II}
+
+ \begin{figure}
+ 	\centering
+ 	\begin{tikzpicture}[scale=0.9]
+ 	\pgfplotstableread{
+ x y
+ 33.00000131	3.599999905
+ 44.99999881	14.30000019
+ 31.70000017	4.699999809
+ 48.30000103	14.89999962
+ 25.60000122	3.200000048
+ 24.79999959	3.200000048
+ 32.49999881	2.900000095
+ 26.10000074	2.200000048
+ 28.90000045	3.5
+ 39.39999938	12.80000019
+ 28.60000134	3.299999952
+ 33.30000043	3.900000095
+ 28.90000045	5.400000095
+ 24.50000048	1.700000048
+ 29.39999998	3.400000095
+ 37.09999919	3.400000095
+ 32.69999921	3.200000048
+ 26.89999938	1.600000024
+ 45.89999914	13.10000038
+ 25.69999993	3.5
+ 24.30000007	2.299999952
+ 46.70000076	16
+ 45.50000131	14.89999962
+ 31.60000145	4.599999905
+ 33.10000002	9.300000191
+ 33.19999874	6.199999809
+ 26.30000114	6.5
+ 25.20000041	2.400000095
+ 57.20000267	36.79999924
+ 33.19999874	3.700000048
+ 46.39999866	22.60000038
+ 33.50000083	4.099999905
+ 37.70000041	6.099999905
+ 37.20000088	10
+ }\loadedtable
+
+ 	\begin{axis}[
+ 	xlabel=Gini index, % label x axis
+ 	ylabel=Infant mortality (per 1000 births), % label y axis
+ 	axis lines=left, %set the position of the axes
+ 	xmin=20, xmax=60, % set the min and max values of the x-axis
+ 	ymin=0, ymax=40, % set the min and max values of the y-axis
+ 	clip=false
+ 	]
+
+  \addplot [only marks] table {\loadedtable};
+  \addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable} node [anchor=west, xshift=1cm] {$\pgfmathprintnumber[precision=2]{\pgfplotstableregressionb} + \pgfmathprintnumber[precision=2, fixed zerofill]{\pgfplotstableregressiona} \cdot \mathrm{X}$};
+ 	\end{axis}
+ 	\end{tikzpicture}
+ 	\caption{OLS estimates: income inequality and infant mortality}
+ 	\label{fig:fig-10}
+ \end{figure}
+
+ \end{frame}
+
+
+\begin{frame}{Interpretation II}
+-19.1---infant mortality level for a 0 value for Gini (perfect equality). Because the intercept can sometimes have these absurd interpretations, it is occasionally ignored.\bigskip
+
+0.78---increase in number of infants who die associated with a 1-point increase in Gini.\bigskip
+
+If it feels odd to interpret a negative $a$ in this case, you can easily correct this: subtract, say, 30 points from each observation's value on Gini.\bigskip
+
+It's called \underline{rescaling}; it won't impact the value for $b$.
+
+\end{frame}
+
+
+\begin{frame}
+\begin{center}
+    \Huge Thank \textcolor{title}{you} for the kind attention!
+\end{center}
+\end{frame}
+
+\end{document}

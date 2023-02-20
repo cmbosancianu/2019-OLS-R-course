@@ -1,0 +1,1334 @@
+\documentclass[12pt,english,pdf,dvipsnames,aspectratio=169]{beamer}
+\usepackage{fontspec}
+\setsansfont[Mapping=tex-text]{Fira Sans}
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\usepackage[normalem]{ulem}
+\usepackage[T1]{fontenc}
+\usepackage{dcolumn}
+\usepackage{booktabs}
+\usepackage{setspace}
+\makeatletter
+\usetheme{metropolis}
+\usepackage{mathpazo}
+\usepackage{xcolor}
+\definecolor{title}{RGB}{255,98,0}
+\usepackage{tikz, tikz-cd}
+\usetikzlibrary{shapes,backgrounds,trees,decorations.pathreplacing}
+\usepackage[labelformat=empty]{caption}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15}
+\usepgfplotslibrary{fillbetween}
+\usepackage{pgfplotstable}
+\usepackage[sectionbib]{apacite}
+\renewcommand{\bibliographytypesize}{\footnotesize}
+\usepackage{amsmath}
+\usepackage{polyglossia}
+\setdefaultlanguage[variant=american]{english}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{wrapfig}
+\usepackage{hyperref}
+\hypersetup{pdfauthor={Constantin Manuel Bosancianu},
+pdftitle={Linear regression with R/Stata},
+pdfsubject={Day 4: Regression assumptions},
+pdfkeywords={Bamberg, ECPR, 2019, day 4, WSMT}}
+% Defines a checkmark
+\def\checkmark{\tikz\fill[scale=0.4, color=title](0,.35) -- (.25,0) -- (1,.7) -- (.25,.15) -- cycle;}
+\setbeamertemplate{itemize items}{\checkmark}
+% Small underbrace
+\def\smallunderbrace#1{\mathop{\vtop{\m@th\ialign{##\crcr
+   $\hfil\displaystyle{#1}\hfil$\crcr
+   \noalign{\kern3\p@\nointerlineskip}%
+   \tiny\upbracefill\crcr\noalign{\kern3\p@}}}}\limits}
+\setbeamerfont{footnote}{size=\tiny}
+\usepackage[bottom]{footmisc} % Place footnotes exactly at bottom
+\title{Linear Regression with R/Stata}
+\subtitle{Day 4: Regression Assumptions}
+\author{Constantin Manuel Bosancianu}
+\institute{Wissenschaftszentrum Berlin \\ \textit{Institutions and Political Inequality} \\\href{mailto:bosancianu@icloud.com}{bosancianu@icloud.com}}
+\date{February 28, 2019}
+\begin{document}
+\maketitle
+% PREAMBLE %
+
+<<options, eval=TRUE, echo=FALSE, message=FALSE>>=
+library(pacman)
+p_load(tidyverse, knitr, foreign, magrittr, texreg,
+       ggthemes, car, MASS, lmtest)
+
+opts_chunk$set(message = FALSE,
+               warning = FALSE,
+               comment = NA,
+               echo = FALSE,
+               eval = TRUE)
+@
+
+\section{Preamble}
+
+\begin{frame}{Recap from yesterday}
+
+\begin{itemize}
+ \item Categorical predictors are easily handled by OLS, under the form of dummy indicators. The most important part is always being aware of the reference category;
+ \item Sampling variability depends on: (1) sample size, (2) spread of errors, (3) variance of the predictor;
+ \item Large sampling variance generally results in a low $t$ value $\Rightarrow$ lack of statistical significance;
+\end{itemize}
+\end{frame}
+
+
+
+
+\begin{frame}{Example: US union density 1982}
+
+<<ch-1, results='asis'>>=
+df_union <- read.table(file="../02-data/Density-laws.txt",
+                       sep = "\t",
+                       header = TRUE)
+colnames(df_union) <- c("state","density","bargcov","rtw","privdens")
+# state    = US state in 1982;
+# density  = percent of public sector employees in unions;
+# bargcov  = state bargaining laws cover public sector employees (1)
+# or not (0);
+# rtw      = the state has right to work laws (1) or not (0);
+# privdens = union density for private sector employees.
+
+model1 <- lm(density ~ bargcov + rtw,
+             data = df_union)
+
+texreg(list(model1),
+       digits = 2,
+       custom.model.names = c("DV: Public sector union dens."),
+       custom.coef.names = c("(Intercept)",
+                             "Public sector coverage (yes)",
+                             "Right-to-work law (yes)"),
+       label = "tab:tab-01", booktabs = TRUE, dcolumn = TRUE,
+       use.packages = FALSE,
+       fontsize = "footnotesize",
+       caption = "One more attempt at interpretation",
+       custom.note = ("\\parbox{.6\\linewidth}{\\vspace{2pt}%stars. Standard errors in brackets.\\\\
+       DV (outcome) is union density in US states (0-100 range).}"))
+@
+
+\end{frame}
+
+
+
+\section{Introduction}
+
+\begin{frame}{Why assumptions?}
+We can only ``trust'' the estimated $a$, $b$s and SEs if the data follows certain specifications.\bigskip
+
+Without these, we can't be sure that the population effects are the same as the estimated sample effects.\bigskip
+
+Coefficients suffer from \underline{bias}, and standard errors from \underline{inefficiency}.
+\end{frame}
+
+
+
+\begin{frame}{MIA (most important assumptions)}
+  The residuals:
+
+  \begin{enumerate}
+  \item Average of the $e$s is 0 along the length of $X$s: $E(e | x_i)=0$;
+  \item Variance is constant along the length of $X$s: $V(e | x_i) = \sigma_e^2$. This is also called the assumption of ``homoskedasticity''; when it does not hold, we are presented with ``heteroskedasticity'';
+  \item Errors are normally distributed: $e_i \sim \mathcal{N}(0, \sigma_e^2)$;
+  \item Errors are independent from each other: $cov(e_i,e_j)=0$, for any $i \neq j$;
+  \item Predictors are measured without error, and are independent of the errors: $cov(X,e)=0$.
+  \end{enumerate}
+
+\end{frame}
+
+
+
+
+
+\section{Linearity}
+
+\begin{frame}[fragile]{Linearity assumption}
+
+\begin{columns}[T]
+    \begin{column}{.4\textwidth}
+     \begin{block}{}
+\footnotesize{
+Two understandings:
+
+\begin{itemize}
+\item The bivariate relationship between $X$ and $Y$ is linear;
+\item The mean of $e_i$ is 0 along the length of $X$.
+\end{itemize}
+}
+    \end{block}
+    \end{column}
+    \begin{column}{.6\textwidth}
+    \begin{block}{}
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.5]
+% For the regression graph below
+\pgfmathsetseed{1144} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={2+0.2*\pgfplotstablerow}},
+	create on use/y/.style={create col/expr={(0.2*\thisrow{x}*\thisrow{x})+10)+25*rand}}
+}
+% create a new table with 150 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{150}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=35, % set the min and max values of the x-axis
+ymin=0, ymax=250, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\addplot [no markers, very thick, color=title] table [y={create col/linear regression={y=y}}] {\loadedtable} node [anchor=west, xshift=0.2cm, yshift=0.2cm] {$\pgfmathprintnumber[precision=2]{\pgfplotstableregressionb} + \pgfmathprintnumber[precision=2, fixed zerofill]{\pgfplotstableregressiona} \cdot \mathrm{X}$};
+\end{axis}
+\end{tikzpicture}
+\caption{Nonlinear relationship}
+\label{fig:fig-01}
+\end{figure}
+    \end{block}
+    \end{column}
+  \end{columns}
+
+The two are equivalent.
+
+\end{frame}
+
+
+
+\subsection{Diagnosis}
+
+
+\begin{frame}{Diagnosing linearity}
+Plotting $X$s against $Y$ can detect some cases, but can miss some others for multiple regression.\bigskip
+
+The standard way is the \textit{component-plus-residual plot} (in some texts, called the \textit{partial-residual} plot).\bigskip
+
+For each observation for a specific predictor, compute
+
+\begin{equation}
+e_i^{(k)} = e_i + b_kX_k
+\end{equation}
+
+This is called the \textit{partial residual}. Plotting $e_i^{(k)}$ against $X_k$ should reveal any nonlinearity.
+
+\end{frame}
+
+
+\begin{frame}{Example: infant mortality}
+
+<<ch-2, eval=FALSE>>=
+df_qog <- read.spss(file = "../02-data/qog_std_cs_jan18.sav",
+                    to.data.frame = TRUE,
+                    use.value.labels = FALSE)
+df_qog %<>%
+    dplyr::select(cname, wdi_mortinf, wdi_gdpcapcon2010,
+                  ht_region) %>%
+    mutate(cname = as.character(cname),
+           wdi_gdpcapcon2010 = wdi_gdpcapcon2010 / 1000,
+           africa = if_else(ht_region == 4, 1, 0))
+
+write.table(dplyr::select(df_qog, cname, wdi_mortinf, wdi_gdpcapcon2010,
+                          africa),
+            file="../02-data/Infant-mort.txt", sep = "\t", row.names = FALSE,
+            col.names = TRUE)
+@
+
+<<ch-3, results='asis'>>=
+df_qog <- read.table(file = "../02-data/Infant-mort.txt",
+                     header = TRUE,
+                     sep = "\t")
+df_qog %<>%
+    mutate(wdi_gdpcapcon2010 = wdi_gdpcapcon2010 - 5) %>%
+    na.omit()
+
+model1 <- lm(wdi_mortinf ~ wdi_gdpcapcon2010 + africa,
+             na.action = na.omit,
+             data = df_qog)
+
+texreg(list(model1),
+       custom.model.names = c("DV: Infant mortality"),
+       custom.coef.names = c("(Intercept)", "GDP/capita (1,000s)",
+                             "Sub-Saharan Africa (yes)"),
+       booktabs = TRUE, dcolumn = TRUE, use.packages = FALSE,
+       label = "tab:tab-02",
+       fontsize = "footnotesize",
+       caption = "",
+       custom.note = ("\\parbox{.6\\linewidth}{\\vspace{2pt}%stars. Standard errors in brackets.\\\\
+GDP/capita rescaled by subtracting 5,000 USD. \\\\
+       DV (outcome) is no. of deaths per 1,000 live births.}"))
+@
+
+\end{frame}
+
+
+\begin{frame}{Example: infant mortality}
+
+<<ch-4, eval=FALSE>>=
+pdf(file = "../04-graphs/04-01.pdf", height = 7, width = 10)
+crPlots(model1, "wdi_gdpcapcon2010",
+        main = "Component-plus-residual plot",
+        xlab = "GDP/capita",
+        ylab = "Infant mortality (partial residuals)",
+        bg = "transparent",
+        cex.lab = 1.5)
+dev.off()
+@
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.375]{../04-graphs/04-01.pdf}
+  \caption{\label{fig:fig-02} Component-plus-residual plot (solid line is a \textit{lowess} fit).}
+\end{figure}
+
+\end{frame}
+
+
+
+\subsection{Solution}
+
+\begin{frame}{Addressing linearity}
+A standard solution is to transform one of the predictors; in our case, this is GDP/capita.\bigskip
+
+<<ch-5, results='asis'>>=
+# Transform back GDP/capita
+df_qog %<>%
+    mutate(wdi_gdpcapcon2010 = (wdi_gdpcapcon2010 + 5) * 1000,
+           lngdp = log(wdi_gdpcapcon2010))
+
+model2 <- lm(wdi_mortinf ~ lngdp + africa,
+             na.action = na.omit,
+             data = df_qog)
+
+texreg(list(model1, model2),
+       custom.model.names = c("Untransformed GDP", "Transformed GDP"),
+       custom.coef.names = c("(Intercept)", "GDP/capita (1,000s)",
+                             "Sub-Saharan Africa", "log(GDP/capita)"),
+       booktabs = TRUE, dcolumn = TRUE, use.packages = FALSE, label = "tab:tab-03",
+       caption = "Problematic nonlinearity for infant mortality regression",
+       fontsize = "scriptsize", single.row = TRUE,
+       custom.note = ("\\parbox{.6\\linewidth}{\\vspace{2pt}%stars. Standard errors in brackets.\\\\
+GDP/capita rescaled by subtracting 5,000 USD. \\\\
+       DV (outcome) is no. of deaths per 1,000 live births.}"))
+@
+
+\end{frame}
+
+
+\begin{frame}{Addressing linearity}
+
+<<ch-6, eval=FALSE>>=
+pdf(file="../04-graphs/04-02.pdf", height = 7, width = 10)
+crPlots(model2, "lngdp",
+        main = "Component-plus-residual plot",
+        xlab = "log(GDP/capita)", 
+        ylab = "Infant mortality (partial residuals)",
+        bg = "transparent", cex.lab = 1.5)
+dev.off()
+@
+
+\begin{figure}
+  \centering
+  \includegraphics[scale=0.375]{../04-graphs/04-02.pdf}
+  \caption{\label{fig:fig-03} Component-plus-residual plot (GDP is transformed).}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Addressing linearity (cont.)}
+
+Another strategy would be to change the functional form of the model.\bigskip
+
+In our case, this would mean adding both GDP/capita and a squared GDP/capita (the latter is called a \textit{quadratic term}).\bigskip
+
+The squared version can be considered a multiplicative interaction, which would show how the slope of GDP/capita changes depending on \dots GDP/capita.
+
+\end{frame}
+
+
+
+\subsection{Transformations}
+
+\begin{frame}{Mosteller and Tukey's rules}
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[scale=1.5]
+% Axes
+\draw[thick, <->, >=stealth] (0,-1.5)--(0,1.5);
+\draw[thick, <->, >=stealth] (-1.5,0)--(1.5,0);
+% Arcs
+\draw [very thick, domain=10:80] plot ({cos(\x)}, {sin(\x)});
+\draw [very thick, domain=100:170] plot ({cos(\x)}, {sin(\x)});
+\draw [very thick, domain=190:260] plot ({cos(\x)}, {sin(\x)});
+\draw [very thick, domain=280:350] plot ({cos(\x)}, {sin(\x)});
+% Arrows
+\draw[thick, ->, >=stealth] (0.7071068,0.7071068)--(0.9,0.9);
+\draw[thick, ->, >=stealth] (0.7071068,-0.7071068)--(0.9,-0.9);
+\draw[thick, ->, >=stealth] (-0.7071068,-0.7071068)--(-0.9,-0.9);
+\draw[thick, ->, >=stealth] (-0.7071068,0.7071068)--(-0.9,0.9);
+% Markings
+\node[draw=none] at (0,1.6) {\footnotesize{Y up:}};
+\node[draw=none] at (0,1.8) {\footnotesize{$Y^2$}};
+\node[draw=none] at (0,2.0) {\footnotesize{$Y^3$}};
+\node[draw=none] at (0,-1.6) {\footnotesize{Y down:}};
+\node[draw=none] at (0,-1.85) {\footnotesize{$\sqrt{Y}$}};
+\node[draw=none] at (0,-2.1) {\footnotesize{$log(Y)$}};
+\node[draw=none] at (1.8,0.1) {\footnotesize{X up:}};
+\node[draw=none] at (1.8,-0.1) {\footnotesize{$X^2$, $X^3$}};
+\node[draw=none] at (-2.2,0.1) {\footnotesize{X down:}};
+\node[draw=none] at (-2.2,-0.15) {\footnotesize{$log(X)$, $\sqrt{X}$}};
+\end{tikzpicture}
+\caption{Mosteller and Tukey's \citeyear[p.~84]{mosteller_data_1977} set of rules for transformations.}
+\label{fig:fig-04}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Transformations for univariate distributions}
+
+\begin{columns}[T]
+   \begin{column}{.5\textwidth}
+    \begin{block}{Positive skew}
+      \footnotesize
+      Moderate: $NEW=\sqrt{OLD}$
+
+      Substantive: $NEW=\log_{10}OLD$
+
+      Substantive (with 0s): $NEW=\log_{10}(OLD + c_1)$
+    \end{block}
+   \end{column}
+   \begin{column}{.5\textwidth}
+   \begin{block}{Negative skew}
+     \footnotesize
+     Moderate: $NEW = \sqrt{c_2 - OLD}$
+
+     Substantive: $NEW = \log_{10}(c_2 - OLD)$
+   \end{block}
+   \end{column}
+ \end{columns}
+
+ $c_1$: constant added so that smallest value is 1.\bigskip
+
+ $c_2$: constant from which old values are subtracted so that smallest new value is 1.\bigskip
+
+ Naturally, transformations also imply a change in interpretation of the transformed variable.
+
+\end{frame}
+
+
+
+
+
+\section{Homoskedasticity}
+
+\begin{frame}{Homoskedasticity}
+The spread of $e_i$ should be constant along the length of $\hat{Y}$.\bigskip
+
+\begin{figure}
+\includegraphics{../04-graphs/04-03.pdf}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Heteroskedasticity}
+
+\begin{figure}
+\begin{tikzpicture}[scale=0.6]
+% For the regression graph below
+\pgfmathsetseed{1146} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow/1.5}},
+	create on use/y/.style={create col/expr={(1.5 + \pgfplotstablerow/15)*rand}}
+}
+% create a new table with 80 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{80}\loadedtable
+\begin{axis}[
+xlabel=Fitted Y, % label x axis
+ylabel=Residuals, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=55, % set the min and max values of the x-axis
+ymin=-6, ymax=6, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\draw[ultra thick, dashed, color=title] (axis cs:\pgfkeysvalueof{/pgfplots/xmin},0) -- (axis cs:\pgfkeysvalueof{/pgfplots/xmax},0);
+\end{axis}
+\end{tikzpicture}
+\begin{tikzpicture}[scale=0.6]
+% For the regression graph below
+\pgfmathsetseed{1147} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow/1.5}},
+	create on use/y/.style={create col/expr={(5 - \pgfplotstablerow/15)*rand}}
+}
+% create a new table with 80 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{80}\loadedtable
+\begin{axis}[
+xlabel=Fitted Y, % label x axis
+ylabel=Residuals, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=55, % set the min and max values of the x-axis
+ymin=-6, ymax=6, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\draw[ultra thick, dashed, color=title] (axis cs:\pgfkeysvalueof{/pgfplots/xmin},0) -- (axis cs:\pgfkeysvalueof{/pgfplots/xmax},0);
+\end{axis}
+\end{tikzpicture}
+\end{figure}
+
+$a$ and $b$s are unbiased, but their SEs are imprecise, which means significance tests are affected.
+
+\end{frame}
+
+
+
+\subsection{Diagnosis}
+
+\begin{frame}{Diagnosing heteroskedasticity}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=0.5]
+% For the regression graph below
+\pgfmathsetseed{1145} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow/1.5}},
+	create on use/y/.style={create col/expr={1.5*rand}}
+}
+% create a new table with 80 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{80}\loadedtable
+\begin{axis}[
+xlabel=Fitted Y, % label x axis
+ylabel=Residuals, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=55, % set the min and max values of the x-axis
+ymin=-6, ymax=6, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\draw[ultra thick, dashed, color=title] (axis cs:\pgfkeysvalueof{/pgfplots/xmin},0) -- (axis cs:\pgfkeysvalueof{/pgfplots/xmax},0);
+\end{axis}
+\end{tikzpicture}
+\end{figure}
+
+Is $\sigma_e^2$ constant?
+
+\begin{itemize}
+\item a plot of studentized residuals versus fitted values ($\hat{Y}$);
+\item a plot of studentized residuals versus predictors ($X_k$).
+\end{itemize}
+
+\end{frame}
+
+
+\begin{frame}{Example: California 1992}
+
+<<ch-11, eval=FALSE>>=
+df_counties <- read.spss(file = "../02-data/counties1992.sav",
+                         to.data.frame = TRUE,
+                         use.value.labels = FALSE)
+
+df_cal <- df_counties %>%
+    mutate(county = as.character(county),
+           county = str_trim(county),
+           state = as.character(state),
+           state = str_trim(state)) %>%
+    filter(state == "CA")
+
+model1 <- lm(democrat ~ college,
+             data = df_cal,
+             na.action = na.omit)
+
+pdf("../04-graphs/04-04.pdf", height = 5, width = 7)
+plot(fitted(model1), studres(model1),
+  xlab = "Fitted values", ylab = "Studentized residuals",
+        bg = "transparent", cex.lab = 1.5)
+abline(h = 0, lty = 2)
+lines(lowess(fitted(model1), studres(model1)), col="blue")
+dev.off()
+
+pdf("../04-graphs/04-05.pdf", height = 5, width = 7)
+plot(df_cal$college, studres(model1),
+     xlab = "% College educated",
+     ylab = "Studentized residuals",
+     bg = "transparent", cex.lab = 1.5)
+abline(h = 0, lty = 2)
+lines(lowess(df_cal$college, studres(model1)), col="blue")
+dev.off()
+@
+
+\begin{figure}
+\includegraphics[width=0.48\textwidth]{../04-graphs/04-04.pdf}
+\includegraphics[width=0.48\textwidth]{../04-graphs/04-05.pdf}
+\end{figure}
+
+No clear evidence of heteroskedasticity.\bigskip
+
+Take the case of Boston house prices, but with the data at the neighborhood level, and from only 2 towns: Cambridge and Roxbury.
+
+\end{frame}
+
+
+\begin{frame}{Example: Cambridge and Roxbury house prices}
+
+<<ch-12>>=
+df_boston <- read.spss(file = "../02-data/boston.sav",
+                       to.data.frame = TRUE,
+                       use.value.labels = FALSE)
+df_boston %<>%
+    mutate(town = as.character(town),
+           town = str_trim(town)) %>%
+    filter(town %in% c("Cambridge", "Boston Roxbur"))
+
+model1 <- lm(medv ~ rm,
+             data = df_boston,
+             na.action = na.omit)
+@
+
+<<ch-13, eval=FALSE>>=
+pdf("../04-graphs/04-06.pdf", height = 5, width = 7)
+plot(fitted(model1), studres(model1),
+     xlab = "Fitted values",
+     ylab = "Studentized residuals",
+     bg = "transparent", cex.lab = 1.5)
+abline(h = 0, lty = 2)
+lines(lowess(fitted(model1), studres(model1)), col="blue")
+dev.off()
+
+pdf("../04-graphs/04-07.pdf", height = 5, width = 7)
+plot(df_boston$rm, studres(model1),
+     xlab = "Ave. room no.",
+     ylab = "Studentized residuals",
+     bg = "transparent", cex.lab = 1.5)
+abline(h = 0, lty = 2)
+lines(lowess(df_boston$rm, studres(model1)), col="blue")
+dev.off()
+@
+
+\begin{figure}
+\includegraphics[width=0.48\textwidth]{../04-graphs/04-06.pdf}
+\includegraphics[width=0.48\textwidth]{../04-graphs/04-07.pdf}
+\end{figure}
+
+Clear heteroskedasticity: the variance in the middle of the plot is considerably larger than at the left edge.
+
+\end{frame}
+
+
+\begin{frame}{Breusch--Pagan test}
+Can be used for a summary diagnosis.\bigskip
+
+It uses a form of standardized squared residuals, which are then regressed on a set of predictors to produce fitted residuals. These predictors can be the original $X$s, but can also include other variables.\bigskip
+
+The test value, computed with the fitted residuals, has a $\chi^2$ distribution with $k$ degrees of freedom ($k$ is the \# of predictors from the second regression).\bigskip
+
+$H_0$ for the test is that the data is homoskedastic.
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Breusch--Pagan test}
+
+<<ch-14, size="tiny">>=
+bptest(model1)
+@
+
+For our example with Cambridge and Roxbury, the test value is \Sexpr{round(bptest(model1)$statistic, 3)}, with 1 degree of freedom.\bigskip
+
+$p$-value is \Sexpr{round(bptest(model1)$p.value, 5)} $\Rightarrow$ the test is statistically significant.\bigskip
+
+$H_0$ of homoskedasticity is rejected $\Rightarrow$ data is heteroskedastic.
+
+\end{frame}
+
+
+
+\subsection{Solutions}
+
+\begin{frame}{Addressing heteroskedasticity}
+
+None of the solutions are particularly simple.\bigskip
+
+The first is \textit{Weighted Least Squares}---the quantities $\frac{1}{e_i}$ are used as weights to re-estimate the model.\bigskip
+
+Observations with large $e_i$ are down-weighted in this setup.
+
+\end{frame}
+
+
+
+\begin{frame}{Addressing heteroskedasticity (cont.)}
+
+Since the SEs are the problem, we can do a correction on the SEs.\bigskip
+
+``Huber--White standard errors'', ``robust standard errors'', ``sandwich estimator'' \cite{huber_behavior_1967, white_heteroskedasticity_1980}.\bigskip
+
+If the heteroskedasticity is caused by omitted variables in the model specification, though, then the Huber--White correction does not give us much.\bigskip
+
+In this case, Huber--White SEs provide accurate estimates of uncertainty for wrong estimates of effect \cite{freedman_called_2006}.
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Addressing heteroskedasticity (cont.)}
+
+Is it due to an omitted variable?\bigskip
+
+In our case, I omitted a dummy variable and an interaction (data was collected from 2 different towns, and the slope is different in the 2 towns).\bigskip
+
+Including these two predictors improves things.\bigskip
+
+<<ch-15, size="tiny">>=
+df_boston %<>%
+    mutate(camb = if_else(town == "Cambridge", 1, 0))
+
+model2 <- lm(medv ~ rm + camb + rm * camb,
+             data = df_boston,
+             na.action = na.omit)
+
+bptest(model2)
+@
+
+$H_0$ of homoskedasticity cannot be rejected anymore.
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Addressing heteroskedasticity (cont.)}
+
+You ought not be deterred by small differences in residual variances.\bigskip
+
+Results are problematic only when $\sigma_e$ at its highest level is about 2 or 3 times as large as $\sigma_e$ at its lowest level \cite{fox_applied_2008}.
+
+\end{frame}
+
+
+
+
+
+
+\section{Normality of errors}
+
+\begin{frame}[fragile]{Normality}
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[
+    declare function={gamma(\z)=
+    2.506628274631*sqrt(1/\z)+ 0.20888568*(1/\z)^(1.5)+ 0.00870357*(1/\z)^(2.5)- (174.2106599*(1/\z)^(3.5))/25920- (715.6423511*(1/\z)^(4.5))/1244160)*exp((-ln(1/\z)-1)*\z;},
+    declare function={student(\x,\n)= gamma((\n+1)/2.)/(sqrt(\n*pi) *gamma(\n/2.)) *((1+(\x*\x)/\n)^(-(\n+1)/2.));},
+    scale=0.75
+]
+
+\begin{axis}[
+    axis lines=left,
+    enlargelimits=upper,
+    samples=50
+]
+\pgfplotsinvokeforeach{1,2,5,20,50,100,200,400,800,1600}{
+    \addplot [thick, smooth, domain=-6:6] {student(x,#1)} node [pos=0.5, anchor=mid west, xshift=2em, append after command={(\tikzlastnode.west) edge [thin, gray] + (-2em,0)}] {$d.f.=#1$};
+}
+\end{axis}
+\end{tikzpicture}
+  \caption{\label{fig:fig-8} $t$ distributions with varying degrees of freedom: 1, 2, 5, 20, 50, 100, 200, 400, 800, 1,600. Practically, the $t$ distribution with 1,600 degrees of freedom can be considered a normal distribution.}
+\end{figure}
+
+In case errors are not normal, the SEs are affected.
+\end{frame}
+
+
+\subsection{Diagnosis}
+
+\begin{frame}{Diagnosing normality}
+
+The standard tool is a quantile-comparison plot (Q--Q plot).\bigskip
+
+Logic: plot on horizontal axis where we would expect an observation to be, based on the normal distribution, and on the vertical where the observation actually is.\bigskip
+
+If our residuals are normally distributed, then the points ought to line up on a diagonal line in the graph.\bigskip
+
+Useful to examine in particular the behavior of residuals at the tails of the distribution.
+
+\end{frame}
+
+
+
+\begin{frame}{Example: \textit{Fortune}'s 1992 billionaires}
+
+<<ch-16, eval=FALSE>>=
+df_bill92 <- read.table(file = "../02-data/billionaires1992.txt",
+                        header = TRUE,
+                        sep = "\t",
+                        na.strings = "NA")
+df_bill92 %<>%
+    mutate(region = as.character(region),
+           region = case_match(region,
+                               "M" ~ "Middle East",
+                               "U" ~ "United States",
+                               "A" ~ "Asia",
+                               "E" ~ "Europe",
+                               "O" ~ "Other"))
+
+model1 <- lm(wealth ~ age,
+             data = df_bill92)
+
+pdf("../04-graphs/04-08.pdf", height = 5, width = 7)
+qqPlot(model1,
+       xlab = "t distribution",
+       ylab = "Studentized residuals",
+       id.method = "y")
+dev.off()
+
+# California 1992 example
+df_cal %<>%
+    mutate(college_cent = college - mean(college, na.rm = TRUE))
+rownames(df_cal) <- 1:length(df_cal$county)
+
+model2 <- lm(democrat ~ college_cent,
+             data = df_cal,
+             na.action = na.omit)
+
+pdf("../04-graphs/04-09.pdf", height = 5, width = 7)
+qqPlot(model2,
+       xlab = "t distribution",
+       ylab = "Studentized residuals",
+       id.method = "y")
+dev.off()
+
+# Solving the problem with the billionaires data
+model3 <- lm(1/wealth ~ age, data = df_bill92)
+
+pdf("../04-graphs/04-10.pdf", height = 5, width = 7)
+qqPlot(model3,
+       xlab = "t distribution",
+       ylab = "Studentized residuals",
+       id.method = "identify")
+dev.off()
+@
+
+\begin{figure}
+\includegraphics[width=0.60\textwidth]{../04-graphs/04-08.pdf}
+\caption{\label{fig:fig-9} Non-normal errors in model of wealth for billionaires in 1992 ($N = 233$). Specification: $Wealth = a + b_1Age + e$.}
+\end{figure}
+
+\end{frame}
+
+
+
+\begin{frame}{Example: California 1992}
+
+\begin{figure}
+\includegraphics[width=0.60\textwidth]{../04-graphs/04-09.pdf}
+\caption{\label{fig:fig-12} Normal errors in model of Democratic vote \% in California, 1992. Specification: $Vote = a + b_1Education + e$.}
+\end{figure}
+
+\end{frame}
+
+
+
+\subsection{Solution}
+
+\begin{frame}{Addressing non-normality}
+
+A frequent cause for non-normal errors is non-normal predictors $\Rightarrow$ data transformations.\bigskip
+
+In our case, the ``culprit'' is wealth, which has a severe positive skew: most billionaires have between 1 and 3 billion USD, while the richest person in the world then had 37 billion USD.\bigskip
+
+The inverse transformation might work in this case, $\frac{1}{wealth}$, making the outcome into an index of ``poverty''.
+
+\end{frame}
+
+
+\begin{frame}{Example: \textit{Fortune}'s 1992 billionaires}
+
+\begin{figure}
+\includegraphics[width=0.60\textwidth]{../04-graphs/04-10.pdf}
+\caption{\label{fig:fig-13} Normal errors in respecified model of wealth for billionaires in 1992 ($N = 233$).}
+\end{figure}
+
+\end{frame}
+
+
+
+
+
+\section{Unusual and influential data}
+
+
+\begin{frame}{Outliers and high leverage cases}
+OLS estimates are easily influenced by outliers in the data.\bigskip
+
+\underline{Outlier}: a case which, \textit{given its value for $X$}, has an unusual value for $Y$.\bigskip
+
+(high) \underline{Leverage}: a case with a value for $X$ that is far away from the mean of $X$.\bigskip
+
+These two characteristics sometimes coincide, but not always.
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Examples}
+
+ \begin{figure}
+\begin{tikzpicture}[scale=0.40]
+% For the regression graph below
+\pgfmathsetseed{1146} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow/2}},
+	create on use/y/.style={create col/expr={1.3*\thisrow{x} + 5.5 + 1.5*rand}}
+}
+% create a new table with 10 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{10}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=5, % set the min and max values of the x-axis
+ymin=0, ymax=15, % set the min and max values of the y-axis
+clip=false
+]
+
+%\pgfplotstablesave{\loadedtable}{../08Tables/Tab09.dat}
+
+\addplot [only marks] table {\loadedtable};
+\addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable} node[xshift=1.2cm] {fit without \textcolor{title}{$\bullet$}};
+\node [circle, fill=title, color=title, inner sep=-2pt] (A) at (225,10) {};
+\draw[very thick, dashed] (0, 49.80074)--(450,113.05366) node[xshift=1cm] {fit with \textcolor{title}{$\bullet$}};
+\end{axis}
+\end{tikzpicture}
+
+\begin{tikzpicture}[scale=0.40]
+% For the regression graph below
+\pgfmathsetseed{1146} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow/2}},
+	create on use/y/.style={create col/expr={1.3*\thisrow{x} + 5.5 + 1.5*rand}}
+}
+% create a new table with 10 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{10}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=5, % set the min and max values of the x-axis
+ymin=0, ymax=15, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable} node[xshift=1.2cm] {fit without \textcolor{title}{$\bullet$}};
+\node [circle, fill=title, color=title, inner sep=-2pt] (A) at (450,10) {};
+\draw[very thick, dashed] (0, 68,857)--(450,91,90272) node[xshift=1cm] {fit with \textcolor{title}{$\bullet$}};
+\end{axis}
+\end{tikzpicture}
+\centering
+\begin{tikzpicture}[scale=0.40]
+% For the regression graph below
+\pgfmathsetseed{1146} % set the random seed
+\pgfplotstableset{ % Define the equations for x and y
+	create on use/x/.style={create col/expr={\pgfplotstablerow/2}},
+	create on use/y/.style={create col/expr={1.3*\thisrow{x} + 5.5 + 1.5*rand}}
+}
+% create a new table with 10 rows and columns x and y:
+\pgfplotstablenew[columns={x,y}]{10}\loadedtable
+\begin{axis}[
+xlabel=X, % label x axis
+ylabel=Y, % label y axis
+axis lines=left, %set the position of the axes
+xmin=0, xmax=8, % set the min and max values of the x-axis
+ymin=0, ymax=18, % set the min and max values of the y-axis
+clip=false
+]
+
+\addplot [only marks] table {\loadedtable};
+\addplot [no markers, thick, title] table [y={create col/linear regression={y=y}}] {\loadedtable} node[xshift=2.4cm] {fit \textcolor{title}{with}/without \textcolor{title}{$\bullet$}};
+\node [circle, fill=title, color=title, inner sep=-2pt] (A) at (750,160) {};
+\draw[very thick, dashed, color=title] (0, 57,40234)--(750,160,97071);
+\end{axis}
+\end{tikzpicture}
+\caption{\scriptsize{\textbf{Top panel}: Outlier, but with low leverage. \textbf{Bottom left panel}: Outlier, with high leverage. \textbf{Bottom right panel}: High leverage, but not an outlier.}}
+\end{figure}
+
+\end{frame}
+
+
+
+
+\begin{frame}{Influence on coefficients}
+
+ \begin{equation}
+Influence = Leverage \times Discrepancy
+ \end{equation}
+
+ The case in the second panel has high influence (on the regression slope).\bigskip
+
+ The case in the third panel is nevertheless problematic.
+
+ \begin{equation}
+   V(b) = \frac{\sigma_\epsilon^2}{\sum_{i=1}^n(x_i - \bar{x})^2}
+ \end{equation}
+
+ The sampling variance is ``artificially'' reduced in such cases.
+
+\end{frame}
+
+
+
+
+\subsection{Leverage}
+
+\begin{frame}{Assessing leverage}
+``Hat-values'' are used.\bigskip
+
+It's possible to express every $\hat{Y}_i$ as a weighted sum of $Y_i$.\bigskip
+
+\begin{equation}
+\hat{Y}_j = h_{1j}Y_1 + h_{2j}Y_2 + \dots + h_{jj}Y_j + \dots + h_{nj}Y_n
+\end{equation}
+
+Any observation that has a $h_{ij}$ larger than $2 \times \bar{h}$ or $3 \times \bar{h}$, should be considered a high leverage case.
+ 
+\end{frame}
+
+
+\begin{frame}{Example: California 1992}
+
+<<ch-17, eval=FALSE>>=
+model1 <- lm(democrat ~ college,
+             data = df_cal, 
+             na.action = na.omit)
+df_cal$hatv <- hatvalues(model1)
+df_cal$row <- rownames(df_cal)
+
+pdf("../04-graphs/04-11.pdf", height = 4, width = 6)
+plot(hatvalues(model1), main = "Hat values")
+abline(h = c(2,3)*2/length(df_cal$county), lty = 2)
+with(filter(df_cal, hatv >= 0.06896552), text(row, hatv, county, pos = 2))
+dev.off()
+@
+
+\begin{figure}
+ \centering
+ \includegraphics[width=0.8\textwidth]{../04-graphs/04-11.pdf}
+ \caption{\label{fig:fig-09} Hat values for simple regression on California 1992 election data (dashed lines represent the $2\bar{h}$ and $3\bar{h}$ thresholds).}
+\end{figure}
+
+\end{frame}
+
+
+
+\subsection{Outliers}
+
+\begin{frame}{Detecting outliers}
+ Studentized residuals:
+
+ \begin{equation}
+ E_i^* = \frac{e_i}{S_{E(-i)}\sqrt{1-h_i}}
+ \label{eq:eq-01}
+ \end{equation}
+
+ Computed from:
+
+ \begin{itemize}
+ \item OLS residuals, $e_i$;
+ \item standard error of the regression, $S_E = \sqrt{\frac{\sum_{i=1}^n\epsilon_i^2}{n-k-1}}$;
+ \item hat values, $h_i$.
+ \end{itemize}
+\end{frame}
+
+
+
+\begin{frame}{Detecting outliers}
+ Instead of the regression SE, $S_E$, we use the regression $S_E$ without the $i$ observation, $S_{E(-1)}$.\bigskip
+
+This makes the top and bottom part of Equation \ref{eq:eq-01} independent of each other $\Rightarrow$ $E_i^*$ has a $t$ distribution ($n-k-2$ degrees of freedom).\bigskip
+
+We're interested in the maximum value of the studentized residual, $E_{max}^*$.\footnote{The procedure is a bit more complicated, involving a \textit{Bonferroni adjustment} to the $p$ value of this $E_{max}^*$. Specific details can be found in \citeA[p.~248]{fox_applied_2008}.}
+\end{frame}
+ 
+ 
+
+\begin{frame}[fragile]{Example: California 1992}
+
+<<ch-18>>=
+df_counties <- read.spss(file = "../02-data/counties1992.sav",
+                         to.data.frame = TRUE,
+                         use.value.labels = FALSE)
+
+df_cal <- df_counties %>%
+    mutate(county = as.character(county),
+           county = str_trim(county),
+           state = as.character(state),
+           state = str_trim(state)) %>%
+    filter(state == "CA")
+
+model1 <- lm(democrat ~ college,
+             data = df_cal, 
+             na.action = na.omit)
+@
+
+<<ch-19, echo=TRUE, size="footnotesize">>=
+outlierTest(model1)
+@
+
+Observation 38 = San Francisco.\bigskip
+
+The \textit{Bonferroni-adjusted} $p$-value suggests that it's not unusual to see a residual of such magnitude in a sample of 58 observations.
+\end{frame}
+
+
+
+\subsection{Influence}
+
+\begin{frame}{Assessing influence}
+A large number of quantities have been proposed.\bigskip
+
+\underline{$DFBETA_{ij}$}: a distance between the OLS estimate with and without a particular observation $i$ in the sample.\bigskip
+
+A derivate measure for influence is \underline{$DFBETAS_{ij}$}, which simply standardizes the $D_{ij}$.\bigskip
+
+The problem with both is that each measure can be computed for each observation and each predictor.\bigskip
+
+Cook \citeyear{cook_detection_1977} introduces a distance measure based on the \textit{standardized} residuals, which applies only to observations: Cook's $D$.
+
+\end{frame}
+
+
+
+\begin{frame}{Cook's $D$}
+
+\begin{equation}
+D_{i} = \underbrace{\frac{E_i^{'2}}{k+1}}_{\text{discrepancy}} \times \underbrace{\frac{h_i}{1-h_i}}_{\text{leverage}}
+\end{equation}
+
+$k$ is the number of predictors in the model, and $h_i$ is the hat-value for observation $i$. $E_i^{'2}$ represent the squared standardized residuals\footnote{\citeA[p.~15]{belsley_regression_2004} propose a similar distance measure, called $DFFITS_i$, but computed based on \textit{studentized} residuals.}, where
+
+\begin{equation}
+E_i^{'} = \frac{\epsilon_i}{S_E\sqrt{1 - h_i}}
+\end{equation}
+
+\end{frame}
+
+
+
+
+\begin{frame}{Bubble plot}
+
+<<ch-20, eval=FALSE>>=
+pdf("../04-graphs/04-12.pdf", height = 6, width = 8)
+influencePlot(model1,
+              xlab = "Hat-values",
+              ylab = "Studentized residuals",
+              id.n = 0,
+              id.method = "identify")
+showLabels(hatvalues(model1), studres(model1), labels = df_cal$county,
+           id.cex = 0.9)
+dev.off()
+@
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.4]{../04-graphs/04-12.pdf}
+\caption{\label{fig:fig-10} ``Bubble plot'' of hat-values versus studentized residuals (the area of the circle is proportional to Cook's $D$).}
+\end{figure}
+
+\end{frame}
+
+
+
+
+\section{Additional assumptions}
+
+\begin{frame}{Other assumptions}
+Encountered frequently \cite{berry_understanding_1993}, but without a clear solution:
+
+\begin{itemize}
+\item some depend on the researcher's background knowledge, and not on a statistical fix, e.g. measurement error;
+\item for others the solutions are not straightforward, and sometimes depend on learning more advanced procedures, e.g. collinearity.
+\end{itemize}
+
+\end{frame}
+
+
+\subsection{No specification error}
+
+\begin{frame}{No specification error}
+The assumption requires that the estimated model is \textit{complete}: excludes variables that ought not to be there, and includes all relevant variables.\bigskip
+
+Theory provides a list of variables.\bigskip
+
+Take an example. Although the full model is:
+
+\begin{equation}
+Y = a + b_{11}X_1 + b_{12}X_2 + \epsilon_1
+\end{equation}
+
+we can only test:
+
+\begin{equation}
+Y = a + b_{21}X_1 + \epsilon_2
+\end{equation}
+
+\end{frame}
+
+
+
+\begin{frame}{Effects of mis-specification}
+Further assume that $X_1$ and $X_2$ are weakly correlated.\bigskip
+
+\begin{itemize}
+\item $X_2$ excluded from the model
+\item $X_2$ is correlated with $X_1$
+\item $X_2$ has a partial effect on $Y$
+\end{itemize}
+
+The effect of $X_2$ is now part of $X_1$ $\Rightarrow$ $b_{21} \neq b_{11}$.
+
+\end{frame}
+
+
+
+\begin{frame}{Diagnosis}
+There is a test: Ramsey's RESET (Regression Equation Specification Error Test).\bigskip
+
+This is limited, as it only refers to functional specification, and tests for any omitted non-linear predictors.\bigskip
+
+Ultimately, it's down to knowing the theory and having the right data available.
+
+\end{frame}
+
+
+
+\subsection{No measurement error}
+
+\begin{frame}{No measurement error (in the predictors)}
+Measurement error in the outcome can be accommodated in OLS.\bigskip
+
+$e_i$ have a non-normal distribution, but $a$ and $b$s are still BLUE (\textit{Best Linear Unbiased Estimators}).\bigskip
+
+BLUE requires only the assumption of linearity, homoskedasticity, and error independence.\bigskip
+
+Measurement in the predictors, though, impacts the estimates.
+
+\end{frame}
+
+
+\begin{frame}{No measurement error (in the predictors)}
+Measurement error in the predictors tends to bias coefficients downward (they are smaller than they should be).\bigskip
+
+Ultimately, probably all indicators have some measurement error to them.\bigskip
+
+Two aspects are important:
+
+\begin{itemize}
+\item the size of the error;
+\item whether it's random or systematic.
+\end{itemize}
+
+\end{frame}
+
+
+
+\begin{frame}{No measurement error (in the predictors)}
+Random error $\Rightarrow$ $a$ and $b$s are unbiased, but SEs are larger, and $R^2$ is lower \cite[p.~51]{berry_understanding_1993}.\bigskip
+
+Systematic error $\Rightarrow$ even the $a$ and $b$s are biased.\bigskip
+
+No magic bullet: put a lot of time in concept operationalization.\bigskip
+
+\end{frame}
+
+
+
+
+
+\subsection{No autocorrelation}
+
+\begin{frame}{No autocorrelation}
+Particularly salient in time-series analysis.\bigskip
+
+$e_t$ tends to correlate with $e_{t+1}$ because some phenomena exhibit slow change and multi-year trends (e.g. unemployment, GDP/capita).\bigskip
+
+A test is available: the Durbin-Watson test.\bigskip
+
+\begin{equation}
+ D = \frac{\sum_{t=2}^n(\epsilon_t - \epsilon_{t-1})^2}{\sum_{t=1}^n\epsilon_t^2}
+\end{equation}
+\end{frame}
+
+
+\begin{frame}{No autocorrelation}
+
+For a large $n$, $D \approx 2(1-\rho)$, where $\rho$ is the correlation coefficient between $\epsilon_t$ and $\epsilon_{t+1}$.\bigskip
+
+A $D \approx 2$ suggests that $\rho \approx 0$, which is ideal.\bigskip
+
+The limits of $D$ are 0, when $\rho=1$, and 4, when $\rho=-1$.
+
+\end{frame}
+
+
+
+\subsection{No (perfect) collinearity}
+
+\begin{frame}{No (perfect) collinearity}
+
+The formula for sampling variance of a particular predictor, $X_j$, in multiple regression had the VIF:
+
+\begin{equation}
+VIF = \frac{1}{1 - R_j^2}
+\end{equation}
+
+$R_j^2$ is the model fit from a regression of $X_j$ on all the other predictors in the model.\bigskip
+
+The higher the correlation between $X_j$ and another predictor, the higher the $R_j^2$ $\Rightarrow$ high VIF $\Rightarrow$ high sampling variance.
+
+Large SEs means that there isn't enough (independent) information to properly estimate $b$.
+\end{frame}
+
+
+\begin{frame}{Solutions: high collinearity}
+
+Yet again, no magic bullet:
+
+\begin{itemize}
+\item create an index, if it's theoretically plausible;
+\item drop a variable from the model, and risk mis-specification error;
+\item collect more data, to estimate $b$ with more precision;
+\item ridge regression: accept a bit of bias in your coefficients, for a larger gain in efficiency.
+\end{itemize}
+
+\end{frame}
+
+% FRAME
+\begin{frame}
+\begin{center}
+    \Huge Thank \textcolor{title}{you} for the kind attention!
+\end{center}
+\end{frame}
+
+% REFERENCES %
+
+\begin{frame}[plain, allowframebreaks]
+
+\renewcommand{\section}[2]{}
+\bibliographystyle{apacite}
+\bibliography{Bibliography.bib}
+\end{frame}
+
+\end{document}

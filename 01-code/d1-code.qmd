@@ -1,0 +1,369 @@
+---
+title: "Linear Regression: Day 1"
+author:
+  name: "Constantin Manuel Bosancianu"
+  orcid: 0000-0001-7950-9798
+  email: bosancianu@icloud.com
+date: "February 25, 2019"
+bibliography: "../03-slides/Bibliography.bib"
+execute:
+  eval: true
+  echo: true
+  warning: false
+  error: false
+format:
+  html:
+    toc: true
+    code-fold: true
+    toc-location: left
+    theme: minty
+    number-sections: true
+    reference-location: margin
+    embed-resources: true
+---
+
+# Introduction
+
+Time constraints prevent us from going into basic data manipulation procedures in `R`: working with objects, functions in `R`, manipulating output objects etc.
+
+Irrespective of which text editor you are using, when compiling this code file the working directory will automatically be set to the folder where this code file is located in. If you want to run the code line by line, you set the working directory on your own. You can check the current working directory with the `getwd()` function, and you can set a new working directory with the `setwd()` function.
+
+All scripts assume that you are in the directory where the code file is placed: `./01-code`. They further assume that in the main "OLS" project folder you have the following subfolders:
+
+- `02-data`
+- `03-slides`
+- `04-graphs`
+- `05-output`
+
+If you have this folder structure in place, the code file should work from beginning to end without an error.^[As you've discovered so far, **R** is case-sensitive: it will produce an error if you're trying to read data from the `./02-Data` folder instead of the `02-data` one.]
+
+Helpful tips:
+- when you don't remember the arguments for a function, make use of the `help()` function
+- when you don't remember how to extract elements from an object (vector, matrix, list, statistical output), turn to the `str()` function
+- if you're missing a package on your machine, quickly install it with the following snippet of code: `install.packages("package_name", dep = TRUE, repos = "https://cran.rstudio.com")`
+
+**Warning**: the code chunk below will install packages on your system (if these are not already installed).
+
+```{r load-packages}
+library(pacman)
+p_load(readstata13, tidyverse, psych, corrgram, car, knitr,
+       kableExtra, magrittr, ggthemes)
+```
+
+The `p_load()` function from the `pacman` package looks for the collection of packages you specify on your machine. If it finds them, it loads them in the working environment; if it doesn't, it downloads them, installs them, and then loads them.
+
+# Reading data
+
+The data for today refers to the average SAT level in each of the 51 American states, and what it is impacted by. The example scales easily to other settings, such as comparisons between countries in the PISA rankings, or between schools within a decentralized education system. The data comes from @hamilton_statistics_2006, in a Stata format. It originates from data collected around 1990-1991.
+
+Please use the codebook supplied with the data set (**Codebook-SAT-data.pdf**) to get familiarized with the variables and their measurement scales.
+
+The code chunk below assumes that the data set is in the `02-data` folder. This means we have to go one folder up from the code folder, and then into the data folder. The data file cannot be read with the standard  function from the `foreign` library, because it was last saved with  a copy of Stata 13. For that, we need the function available in the `readstata13` package.
+
+```{r read-data}
+df_sat <- read.dta13(file = "../02-data/01-Education-states.dta",
+                     convert.factors = TRUE)
+```
+
+We will be using a lot of functions from the `dplyr` package and from some of the other packages that make up the `tidyverse`. Despite some opinions to the contrary ([https://github.com/matloff/TidyverseSkeptic](https://github.com/matloff/TidyverseSkeptic)), I believe it is a very elegant way of thinking about coding, and one which I think will grow in importance. It pays off to learn it early and well.
+
+The pipe operator (`%>%`) serves to take the output from a line of code, and feed it as input into the next line of code. It can be loosely translated as "with this... do that...".
+
+```{r examine-data}
+df_sat %>%
+    glimpse()
+```
+
+Everything looks fairly OK (nothing that we wouldn't expect). You notice that there are some missing values on some of the variables.
+
+# Exploring the data
+
+The beginning of any regression analysis is a thorough exploration of the data. The goal for this is to understand features of your data that might be obscured by a simple mean or a standard deviation, e.g. outliers, or clusters.
+
+## Univariate displays
+
+```{r examine-outcome}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_sat, aes(x = csat)) + 
+    geom_histogram(binwidth = 10) + 
+    theme_clean()
+```
+
+Nothing too odd there - a few states cluster around the values of 900 and 1000, but that's not particularly worrying at this stage.
+
+Which are the states with the highest average SAT scores?
+
+```{r examine-highest-scores, results='asis'}
+df_sat %>%
+    dplyr::select(state, region, expense, csat) %>%
+    filter(csat > 1000) %>%
+    arrange(-csat) %>%
+    kable(caption = "Highest average CSAT scores",
+          caption.above = TRUE,
+          col.names = c("State", "Region", "Per capita expenditure", "CSAT")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+What are those with the lowest average scores?
+
+```{r examine-lowest-scores, results='asis'}
+df_sat %>%
+    dplyr::select(state, region, expense, csat) %>%
+    filter(csat < 900) %>%
+    arrange(-csat) %>%
+    kable(caption = "Lowest average CSAT scores",
+          caption.above = TRUE,
+          col.names = c("State", "Region", "Per capita expenditure", "CSAT")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+What about per capita expenditure for primary and secondary education?
+
+```{r examine-expenditure}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_sat, aes(x = expense)) +
+  geom_histogram(binwidth = 200) +
+  theme_clean() +
+  scale_x_continuous(limits = c(2500, 9500))
+```
+
+Most states spend on average between 4,000 and 6,000 USD per capita. What are the states with the highest average expenditure?
+
+```{r examine-highest-expenditure, results='asis'}
+df_sat %>%
+    dplyr::select(state, region, csat, expense) %>%
+    filter(expense > 6000) %>%
+    arrange(-expense) %>%
+    kable(caption = "Highest average per capita expenditure",
+          caption.above = TRUE,
+          col.names = c("State", "Region", "CSAT", "Per capita expenditure")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+And the states with the lowest average expenditure?
+
+```{r examine-lowest-expenditure, results='asis'}
+df_sat %>%
+    dplyr::select(state, region, csat, expense) %>%
+    filter(expense < 4000) %>%
+    arrange(-expense) %>%
+    kable(caption = "Lowest average per capita expenditure",
+          caption.above = TRUE,
+          col.names = c("State", "Region", "CSAT", "Per capita expenditure")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+Curiously, some of the states which have among the highest average expenditures in the US, are also the ones with the lowest average SAT scores. Then again, Arkansas and Alabama are also in the list, with pretty high SAT scores for quite little expenditure on education.
+
+We can produce more details about each distribution.^[The `describe()` function is part of the `psych` package.] First, combined SAT score.
+
+```{r detailed-distribution-1}
+describe(df_sat$csat, IQR = TRUE)
+```
+
+Next, expenditure.
+
+```{r detailed-distribution-2}
+describe(df_sat$expense, IQR = TRUE)
+```
+
+## Multivariate displays
+
+How is the relationship between SAT scores and expenditures?
+
+```{r relationship-sat-expenditure-1}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_sat,
+       aes(x = expense,
+           y = csat)) + 
+  geom_point(size = 2) + 
+  theme_clean() +
+  labs(x = "Expenditure on education",
+       y = "Combined SAT score")
+```
+
+Replace the dots with state names, so as to better see who the outliers are.
+
+```{r relationship-sat-expenditure-2}
+#| fig-height: 4
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+ggplot(df_sat,
+       aes(x = expense,
+           y = csat)) +
+  geom_text(aes(label = state)) +
+  theme_clean() +
+  labs(x = "Expenditure on education",
+       y = "Combined SAT score")
+```
+
+The relationship looks negative - states which spend more per student also register worse results in the SAT, on average. It's also interesting to note that the relationship might not be linear, in fact.^[We'll deal with this a bit later.]
+
+How strong is the relationship between the two variables?
+
+```{r covariance-1}
+cov(df_sat$csat, df_sat$expense)
+```
+
+You can see that the direction of the relationship is clearly indicated (negative). However, it's hard to tell just from the output whether this is a strong relationship or not, as we have no reference points.
+
+Additionally, the value depends on the scale of the variables. Consider for a bit what would happen if expenditure on education wouldn't be measured in USD but in 1,000s of USD.
+
+```{r covariance-2}
+df_sat %<>%
+    mutate(exp_thous = expense / 1000)
+
+cov(df_sat$csat, df_sat$exp_thous)
+```
+
+We now have a value for the covariance that is 1,000 times lower, but this doesn't mean the second covariance is smaller than the first, at least in how it describes the strength of association between the two variables.
+
+This is where the correlation helps, because it is scale invariant.^[-0.47 would be considered a moderate correlation between the two variables.]
+
+```{r correlation}
+cor(df_sat$csat, df_sat$expense)
+cor(df_sat$csat, df_sat$exp_thous)
+```
+
+R can check for many correlations at the same time.
+
+```{r corr-matrix-1, eval=FALSE}
+cor(df_sat[, c("metro", "energy", "toxic", "green")],
+    use = "pairwise.complete.obs")
+```
+
+```{r corr-matrix-2}
+round(cor(df_sat[, c("metro", "energy", "toxic", "green")],
+          use = "pairwise.complete.obs"),
+      digits = 2) # Displaying it in a nicer format
+```
+
+```{r corr-matrix-3, eval=FALSE}
+round(cor(df_sat[, c("metro", "energy", "toxic", "green")],
+          use = "complete.obs"),
+      digits = 4)
+```
+
+Remember, however, that the correlation is a good description of a linear relationship. If the association is not linear, then correlation might deceive you.
+
+You can depict both univariate and bivariate relationships in a single graph.^[The `corrgram()` function is part of the `corrgram` package.]
+
+```{r corrgram-1}
+#| fig-height: 6
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+corrgram(df_sat[, c("metro", "energy", "toxic", "green")],
+         lower.panel = panel.pie, 
+         upper.panel = panel.cor)
+```
+
+Are the relationships truly linear?
+
+```{r corrgram-2}
+#| fig-height: 6
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+corrgram(df_sat[, c("metro", "energy", "toxic", "green")],
+         lower.panel = panel.pts, 
+         upper.panel = panel.cor)
+```
+
+How about another set of variables?
+
+```{r corrgram-3}
+#| fig-height: 6
+#| fig-width: 6
+#| fig-align: "center"
+#| dpi: 144
+
+corrgram(df_sat[, c("expense", "income", "high", "college")],
+         lower.panel = panel.pts, 
+         upper.panel = panel.cor)
+```
+
+## Inferences
+
+Finally, let's try a *t*-test: we saw that some states in the South and North East of the US tended to have pretty low scores on the combined SAT score. Is this something we can show with a more rigorous analysis?
+
+Turn the `region` variable into an indicator variable, for whether the state is in the South or North West, or not.
+
+```{r recode-1}
+df_sat %<>%
+    mutate(region = as.character(region),
+           sne = if_else(region %in% c("South", "N. East"), 1, 0))
+```
+
+Are the differences between the two regional groups large?
+
+```{r regional-differences, results='asis'}
+df_sat %>%
+    group_by(sne) %>%
+    summarise(CSAT = mean(csat, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(sne = if_else(sne == 1, "South or N. East", "Elsewhere")) %>%
+    kable(caption = "Average CSAT scores between the two regional clusters",
+          caption.above = TRUE,
+          col.names = c("Regional cluster", "CSAT")) %>%
+    kable_styling(full_width = TRUE)
+```
+
+Are these differences large enough, though?
+
+```{r t-test}
+t.test(csat ~ sne, data = df_sat)
+```
+
+Yes, it seems like there are statistically significant differences.
+
+
+# Simple linear regression
+
+We will first try a simple linear regression, so as to see how things look, and how the standard output for such an analysis looks in `R` and `Stata`.
+
+For this, we use a standard function in base `R`, called `lm()` - linear models.
+
+```{r linear-model}
+model1 <- lm(csat ~ expense, # First DV, then ~, then IV
+             data = df_sat, # The data used
+             na.action = na.omit) # Listwise remove missing observations
+options(scipen = 8) # Turns off scientific notation for parameter estimates
+
+summary(model1)
+```
+
+The output is split up in a few regions, but focus now only on the "Coefficients" subsection; in particular, look at the first column in that section, labelled "Estimate". That's where your coefficients ("a" and "b" from our slides) are.
+
+**Questions**:
+
+1. How would you interpret $a = 1060.73$?
+2. How would you interpret $b = -0.022$? (you will need to look back at the codebook, to see how the variables are coded)
+
+
+
+
+# Package versions
+
+Package versions used in this script.
+
+```{r package-versions}
+sessionInfo()
+```
+
